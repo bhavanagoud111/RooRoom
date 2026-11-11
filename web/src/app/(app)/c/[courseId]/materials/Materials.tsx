@@ -69,7 +69,7 @@ export function Materials({ courseId, isProf }: { courseId: string; isProf: bool
     <div>
     {confirmDialog}
     <PageHeader title="Materials & Syllabus"
-      description={TAGS.materials} />
+      description={isProf ? TAGS.materials : 'Your professor’s course files, plus your own private notes for the Study AI.'} />
     <div className="grid gap-6 2xl:grid-cols-[minmax(0,1fr)_340px]">
       <section className="card h-fit overflow-hidden" aria-labelledby="files">
         <div className="card-header">
@@ -82,7 +82,7 @@ export function Materials({ courseId, isProf }: { courseId: string; isProf: bool
         {docs === null ? <div className="p-5"><LoadingSkeleton rows={3} /></div> : shown.length === 0 ? (
           <div className="p-5"><Empty icon={<FileText />} title={kindFilter ? 'No files of this type' : 'No materials yet'}>
             {isProf ? 'Upload your syllabus first: its deadlines go straight onto every student’s calendar.'
-              : 'Your professor has not uploaded anything yet. You can add your own private notes.'}
+              : 'Your professor has not uploaded anything yet. You can add your own private notes on the right.'}
           </Empty></div>
         ) : <ul className="divide-y divide-line">{shown.map((d) => (
           <li key={d.id} className="flex items-center gap-4 px-5 py-3.5 hover:bg-slate-50/60">
@@ -96,7 +96,7 @@ export function Materials({ courseId, isProf }: { courseId: string; isProf: bool
                 {d.module && <Badge>{d.module}</Badge>}
                 {d.visibility === 'class'
                   ? <Badge tone="green"><Globe2 className="h-3 w-3" />Whole class</Badge>
-                  : <Badge tone="gray"><Lock className="h-3 w-3" />Only you</Badge>}
+                  : <Badge tone="gray"><Lock className="h-3 w-3" />{isProf ? 'Only you' : 'My private notes'}</Badge>}
                 {d.page_count ? <span>{d.page_count} pages</span> : null}
                 <span>{(d.size_bytes / 1024).toFixed(0)} KB</span>
               </div>
@@ -115,11 +115,17 @@ export function Materials({ courseId, isProf }: { courseId: string; isProf: bool
       </section>
 
       <form onSubmit={upload} className="card h-fit space-y-3 p-5">
-        <h2 className="card-title"><Upload className="h-4 w-4 text-ink-mute" />Upload a PDF</h2>
+        <h2 className="card-title">{isProf ? <><Upload className="h-4 w-4 text-ink-mute" />Upload a PDF</> : <><Lock className="h-4 w-4 text-ink-mute" />My private notes</>}</h2>
+        {!isProf && (
+          <p className="rounded-lg border border-line bg-slate-50 px-3 py-2 text-xs text-ink-soft">
+            Add your own notes as a PDF to study with the Study AI. <strong>Only you and your Study AI can see them</strong>,
+            not your classmates or your professor.
+          </p>
+        )}
         <input ref={fileRef} type="file" accept="application/pdf" className="block w-full text-sm text-ink-soft file:mr-3 file:h-9 file:rounded-lg file:border file:border-line file:bg-white file:px-3 file:text-sm file:font-medium file:text-ink hover:file:bg-slate-50" aria-label="PDF file" />
         <div>
           <label className="label" htmlFor="t">Title</label>
-          <input id="t" className="input" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Module 3: Transport layer" />
+          <input id="t" className="input" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder={isProf ? 'Module 3: Transport layer' : 'My notes on Module 3'} />
         </div>
         <div className="grid grid-cols-2 gap-2">
           <div>
@@ -156,7 +162,7 @@ export function Materials({ courseId, isProf }: { courseId: string; isProf: bool
           </p>
         )}
         {err && <p className="text-sm text-red-600" role="alert">{err}</p>}
-        <button className="btn-primary w-full" disabled={busy}>{busy && <Spinner />}Upload</button>
+        <button className="btn-primary w-full" disabled={busy}>{busy && <Spinner />}{isProf ? 'Upload' : 'Add to my private notes'}</button>
       </form>
     </div>
     </div>
