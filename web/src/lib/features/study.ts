@@ -114,8 +114,20 @@ export async function gradedCheck(db: Db, courseId: string, question: string, qv
       };
     }
   }
+  // Third check: the question names graded work ("Quiz 4", "HW3", "Project Part 3") and asks for
+  // its answer or a solution, without quoting it. "When is Quiz 4?" does not trip this.
+  if (GRADED_REF.test(question) && ANSWER_SEEKING.test(question)) {
+    return { ...best, hit: true, reason: 'Your question asks for the answer to graded work' };
+  }
   return best;
 }
+
+const GRADED_REF = /\b(quiz|exam|midterm|final exam|homework|hw|assignment|project|lab|problem set|pset)\s*#?\s*(part\s*)?\d+/i;
+const ANSWER_SEEKING = new RegExp([
+  String.raw`\bsolve\b`, String.raw`\bsolutions?\b`, String.raw`\banswers?\s+(to|for|of)\b`, String.raw`\bthe\s+(full\s+|final\s+|correct\s+)?answers?\b`,
+  String.raw`\bwrite\s+(the|my|all|this)?\s*(code|program|report|essay|solution)`, String.raw`\b(do|complete|finish)\s+(it|this|my|the)\b.*\bfor me\b`,
+  String.raw`\bwork\s+(it|this)\s+out\s+for\s+me\b`,
+].join('|'), 'i');
 
 function toSources(hits: Hit[]): Source[] {
   return hits.map((h, i) => ({

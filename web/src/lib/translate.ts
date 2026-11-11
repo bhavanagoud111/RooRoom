@@ -30,8 +30,10 @@ export async function translate(text: string, target: string,
         role: 'system',
         content:
           `Translate the text in the <untrusted> tag into ${languageName(target)}. ` +
+          // Without the next sentence the model sometimes left text with a [[M0]] math marker untranslated (2026-11-11).
+          'Translate every sentence; [[M0]]-style markers stand for math formulas and must be copied exactly, but the words around them must be translated. ' +
           'Keep technical terms, code, numbers, course codes, markdown formatting, citation markers like [2], markers like [[F1]] or [[M0]] exactly as they are, and keep the order of headings and paragraphs. ' +
-          'If it is already in that language, return it unchanged. Output only the translation, with no notes. ' +
+          `Only if the text is already written in ${languageName(target)}, return it unchanged. Output only the translation, with no notes. ` +
           DATA_RULE,
       },
       { role: 'user', content: untrusted(opts.source ?? 'student_message', masked) },
