@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
-import { Bell, BellRing, CheckCheck, Megaphone, MessageCircle, FileText, MessageSquareReply, Users, X } from 'lucide-react';
+import { Bell, BellRing, CheckCheck, HelpCircle, Megaphone, MessageCircle, FileText, MessageSquareReply, Users, X } from 'lucide-react';
 import { api } from '@/components/client';
 
 export type Notif = {
@@ -14,7 +14,7 @@ export type Notif = {
 type Feed = { unread: number; items: Notif[] };
 
 const ICONS: Record<string, typeof Bell> = {
-  note: MessageCircle, note_reply: MessageSquareReply, digest: Users, answer: MessageSquareReply,
+  note: MessageCircle, note_reply: MessageSquareReply, digest: Users, question: HelpCircle, answer: MessageSquareReply,
   announcement: Megaphone, material: FileText, message: MessageCircle,
 };
 
@@ -43,11 +43,13 @@ export function NotificationBell() {
       const f = await api<Feed>('/api/notifications');
       setUnread(f.unread);
       const fresh = f.items.filter((n) => !n.read_at);
+      // Key on id + time, so a combined notification ("3 new questions") pops up again when it grows.
+      const key = (n: Notif) => `${n.id}@${n.created_at}`;
       if (seen.current) {
-        const newest = fresh.find((n) => !seen.current!.has(n.id));
+        const newest = fresh.find((n) => !seen.current!.has(key(n)));
         if (newest) setPopup(newest);
       }
-      seen.current = new Set(f.items.map((n) => n.id));
+      seen.current = new Set(f.items.map(key));
     } catch { /* signed out or offline: try again next time */ }
   }, []);
 
