@@ -39,3 +39,6 @@ Placeholders: `IP` = server address, `HOST` = its hostname (`ssh ubuntu@IP hostn
 ```sh
 ssh ubuntu@IP 'cd ~/rooroom/current && sh scripts/reset-demo.sh'
 ```
+
+`reset-demo.sh` needs Node.js on the server (`sudo apt-get install -y nodejs`), or run the
+same steps through a container as `deploy/remote-deploy.sh` does for the first seed.

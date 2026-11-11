@@ -52,12 +52,15 @@ fi
 if [ ! -f "$BASE/shared/.seeded" ]; then
   echo "▸ First deploy: importing UMKC courses and seeding the demo"
   (cd "$NEW" && python3 scripts/import_umkc.py --term 5443 --label "Fall 2026")
-  if command -v node >/dev/null; then
-    (cd "$NEW" && ROOROOM_URL=http://127.0.0.1:3300 node scripts/seed-demo.mjs) && touch "$BASE/shared/.seeded"
-  else
-    docker run --rm --network host -v "$NEW:/app:ro" -w /app -e ROOROOM_URL=http://127.0.0.1:3300 \
-      node:22-alpine node scripts/seed-demo.mjs && touch "$BASE/shared/.seeded"
-  fi
+  # Storage's S3 port comes up a little after the web app on a small box; wait for it.
+  for _ in $(seq 1 40); do
+    docker exec rooroom-web-1 node -e "require('net').connect(8333,'storage').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))" && break
+    sleep 3
+  done
+  # The seed script also runs `docker exec` against the database, so give it the Docker CLI.
+  docker run --rm --network host -v /var/run/docker.sock:/var/run/docker.sock -v "$NEW:/app:ro" -w /app \
+    -e ROOROOM_URL=http://127.0.0.1:3300 node:22-alpine \
+    sh -c "apk add -q --no-cache docker-cli && node scripts/seed-demo.mjs" && touch "$BASE/shared/.seeded"
 fi
 
 # Keep the last 3 releases and tarballs.
