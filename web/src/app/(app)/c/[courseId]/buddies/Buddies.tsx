@@ -2,7 +2,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import clsx from 'clsx';
-import { ArrowLeft, Ban, BookOpen, CalendarClock, Flag, MessageCircle, Search, Send, ShieldCheck, Sparkles, Users } from 'lucide-react';
+import {
+  ArrowLeft, Ban, BookOpen, CalendarClock, Download, FileText, Flag, MessageCircle, Paperclip, Search, Send, ShieldCheck, Sparkles, Users, X,
+} from 'lucide-react';
 import { api, Spinner, Translatable, useConfirm } from '@/components/client';
 import { Badge, Empty, LoadingSkeleton, PageHeader, timeAgo } from '@/components/ui';
 import { TAGS } from '../tags';
@@ -15,7 +17,37 @@ type Buddy = {
 type ThreadSummary = { id: string; is_group: boolean; title: string | null; members: { id: string; display_name: string }[]; last_at: string | null };
 type Member = { id: string; display_name: string; blocked: boolean };
 type Thread = { id: string; course_id: string; is_group: boolean; title: string | null; blocked: boolean; members: Member[] };
-type Msg = { id: string; sender_id: string; sender_name: string; mine: boolean; body: string; created_at: string };
+type Attachment = { id: string; filename: string; content_type: string; size_bytes: number };
+type Msg = { id: string; sender_id: string; sender_name: string; mine: boolean; body: string; created_at: string; attachments?: Attachment[] };
+
+// What can be shared in chat (the server checks the file's real contents too).
+const ACCEPT = '.png,.jpg,.jpeg,.gif,.webp,.pdf,.docx,.xlsx,.pptx,.doc,.xls,.ppt,.zip,.txt,.csv,.md';
+const MAX_FILE = 10 * 1024 * 1024;
+const isImage = (t: string) => ['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(t);
+const fmtSize = (n: number) => (n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`);
+
+function AttachmentView({ a, mine }: { a: Attachment; mine: boolean }) {
+  const url = `/api/attachments/${a.id}`;
+  if (isImage(a.content_type)) {
+    return (
+      <a href={url} target="_blank" rel="noopener noreferrer" className="mb-1 block">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={url} alt={a.filename} loading="lazy" className="max-h-64 max-w-full rounded-md bg-white object-contain" />
+      </a>
+    );
+  }
+  return (
+    <a href={`${url}?download=1`} className={clsx('mb-1 flex items-center gap-2.5 rounded-md px-2.5 py-2',
+      mine ? 'bg-white/15 hover:bg-white/25' : 'bg-slate-50 ring-1 ring-inset ring-line hover:bg-slate-100')}>
+      <FileText className="h-5 w-5 shrink-0" aria-hidden />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-medium">{a.filename}</span>
+        <span className={clsx('block text-[11px]', mine ? 'text-roo-100' : 'text-ink-mute')}>{fmtSize(a.size_bytes)}</span>
+      </span>
+      <Download className="h-4 w-4 shrink-0" aria-label="Download" />
+    </a>
+  );
+}
 type Me = { id: string; name: string; lang: string };
 
 const COLORS = ['#1D4ED8', '#0F766E', '#B45309', '#475569', '#9D174D', '#0E7490', '#3F6212', '#6D28D9'];
@@ -302,6 +334,9 @@ function ThreadView({ threadId, me, tick, status, accent, onClose, onChanged }: 
   const [text, setText] = useState('');
   const [err, setErr] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
   const [reporting, setReporting] = useState<{ messageId?: string; userId?: string } | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
@@ -336,14 +371,36 @@ function ThreadView({ threadId, me, tick, status, accent, onClose, onChanged }: 
 
   useEffect(() => { endRef.current?.scrollIntoView({ block: 'end' }); }, [msgs.length]);
 
+  function pick(f: File | null | undefined) {
+    if (!f) return;
+    const ext = `.${(f.name.split('.').pop() ?? '').toLowerCase()}`;
+    if (!ACCEPT.split(',').includes(ext)) { setErr('You can share images, PDFs, Word, Excel, PowerPoint, text, CSV and ZIP files.'); return; }
+    if (f.size > MAX_FILE) { setErr('Files up to 10 MB can be shared in chat.'); return; }
+    setErr(null);
+    setFile(f);
+  }
+
   async function send(e: React.FormEvent) {
     e.preventDefault();
     const body = text.trim();
-    if (!body) return;
+    if (!body && !file) return;
     setSending(true);
     setErr(null);
     try {
-      const r = await api<{ message: Msg }>(`/api/threads/${threadId}/messages`, { body: { body } });
+      let r: { message: Msg };
+      if (file) {
+        const fd = new FormData();
+        fd.set('file', file);
+        fd.set('body', body);
+        const res = await fetch(`/api/threads/${threadId}/attachments`, { method: 'POST', body: fd });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error((data as { error?: string }).error ?? `Upload failed (${res.status})`);
+        r = data as { message: Msg };
+        setFile(null);
+        if (fileRef.current) fileRef.current.value = '';
+      } else {
+        r = await api<{ message: Msg }>(`/api/threads/${threadId}/messages`, { body: { body } });
+      }
       setText('');
       setMsgs((m) => (m.some((x) => x.id === r.message.id) ? m : [...m, r.message]));
       lastRef.current = r.message.created_at;
@@ -374,7 +431,15 @@ function ThreadView({ threadId, me, tick, status, accent, onClose, onChanged }: 
   const name = thread.title || thread.members.map((m) => m.display_name).join(', ');
 
   return (
-    <div className="card flex h-[calc(100vh-15rem)] min-h-[480px] flex-col overflow-hidden">
+    <div className={clsx('card relative flex h-[calc(100vh-15rem)] min-h-[480px] flex-col overflow-hidden', dragging && 'ring-2 ring-roo-500')}
+      onDragOver={(e) => { if (!thread.blocked && e.dataTransfer.types.includes('Files')) { e.preventDefault(); setDragging(true); } }}
+      onDragLeave={(e) => { if (e.currentTarget === e.target) setDragging(false); }}
+      onDrop={(e) => { e.preventDefault(); setDragging(false); if (!thread.blocked) pick(e.dataTransfer.files?.[0]); }}>
+      {dragging && (
+        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-roo-50/90 text-sm font-semibold text-roo-700">
+          <Paperclip className="mr-2 h-5 w-5" />Drop the file to share it
+        </div>
+      )}
       {confirmDialog}
       <header className="flex items-center gap-3 border-b border-line px-4 py-3" style={{ borderTop: `3px solid ${accent}` }}>
         <button className="btn-ghost h-8 w-8 px-0 xl:hidden" onClick={onClose} aria-label="Back to classmates"><ArrowLeft className="h-4 w-4" /></button>
@@ -429,9 +494,10 @@ function ThreadView({ threadId, me, tick, status, accent, onClose, onChanged }: 
             <div className={clsx('max-w-[75%] rounded-lg px-3.5 py-2 text-sm',
               m.mine ? 'rounded-br-sm bg-roo-600 text-white' : 'rounded-bl-sm border border-line bg-white text-ink')}>
               {!m.mine && thread.is_group && <p className="mb-0.5 text-xs font-semibold" style={{ color: colorFor(m.sender_id) }}>{m.sender_name}</p>}
-              {m.mine
+              {m.attachments?.map((a) => <AttachmentView key={a.id} a={a} mine={m.mine} />)}
+              {m.body && (m.mine
                 ? <p className="whitespace-pre-wrap" dir="auto">{m.body}</p>
-                : <Translatable text={m.body} kind="message" lang={me.lang} />}
+                : <Translatable text={m.body} kind="message" lang={me.lang} />)}
               <p className={clsx('mt-1 text-[10px]', m.mine ? 'text-roo-100' : 'text-ink-mute')}>
                 {new Date(m.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
               </p>
@@ -455,14 +521,32 @@ function ThreadView({ threadId, me, tick, status, accent, onClose, onChanged }: 
           Messaging is off because one of you blocked the other.
         </p>
       ) : (
-        <form onSubmit={send} className="flex items-end gap-2 border-t border-line bg-white px-4 py-3">
-          <textarea className="input max-h-32 min-h-[42px] resize-none" rows={1} value={text} maxLength={2000}
-            placeholder="Write a message…" aria-label="Message" dir="auto"
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(e); } }} />
-          <button className="btn-primary h-[42px] w-[42px] px-0" disabled={sending || !text.trim()} aria-label="Send">
-            {sending ? <Spinner /> : <Send className="h-4 w-4" />}
-          </button>
+        <form onSubmit={send} className="border-t border-line bg-white px-4 py-3">
+          {file && (
+            <div className="mb-2 flex items-center gap-2.5 rounded-lg border border-line bg-slate-50 px-3 py-2">
+              <FileText className="h-4 w-4 shrink-0 text-ink-mute" aria-hidden />
+              <span className="min-w-0 flex-1 truncate text-sm text-ink">{file.name}</span>
+              <span className="shrink-0 text-xs text-ink-mute">{fmtSize(file.size)}</span>
+              <button type="button" className="btn-ghost h-7 w-7 shrink-0 px-0" aria-label="Remove file"
+                onClick={() => { setFile(null); if (fileRef.current) fileRef.current.value = ''; }}>
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          )}
+          <div className="flex items-end gap-2">
+            <input ref={fileRef} type="file" accept={ACCEPT} className="hidden" onChange={(e) => pick(e.target.files?.[0])} />
+            <button type="button" className="btn-outline h-[42px] w-[42px] shrink-0 px-0" onClick={() => fileRef.current?.click()}
+              disabled={sending} aria-label="Attach a file" title="Attach a file (images, PDF, Office, text, ZIP · up to 10 MB)">
+              <Paperclip className="h-4 w-4" />
+            </button>
+            <textarea className="input max-h-32 min-h-[42px] resize-none" rows={1} value={text} maxLength={2000}
+              placeholder={file ? 'Add a caption (optional)…' : 'Write a message…'} aria-label="Message" dir="auto"
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(e); } }} />
+            <button className="btn-primary h-[42px] w-[42px] shrink-0 px-0" disabled={sending || (!text.trim() && !file)} aria-label="Send">
+              {sending ? <Spinner /> : <Send className="h-4 w-4" />}
+            </button>
+          </div>
         </form>
       )}
       {err && <p className="px-5 pb-3 text-xs text-red-600" role="alert">{err}</p>}

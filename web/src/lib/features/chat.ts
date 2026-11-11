@@ -158,6 +158,7 @@ export async function listThreads(db: Db, courseId: string): Promise<ThreadSumma
   return r.rows;
 }
 
+export type ChatAttachment = { id: string; filename: string; content_type: string; size_bytes: number };
 export type ChatMessage = {
   id: string;
   sender_id: string;
@@ -165,6 +166,7 @@ export type ChatMessage = {
   mine: boolean;
   body: string;
   created_at: string;
+  attachments: ChatAttachment[];
 };
 
 export async function threadMeta(db: Db, threadId: string) {
@@ -187,7 +189,10 @@ export async function threadMeta(db: Db, threadId: string) {
 export async function getMessages(db: Db, threadId: string, after?: string | null): Promise<ChatMessage[]> {
   const r = await db.query(
     `SELECT m.id, m.sender_id, m.body, m.created_at, coalesce(p.display_name, 'Classmate') AS sender_name,
-            (m.sender_id = app_uid()) AS mine
+            (m.sender_id = app_uid()) AS mine,
+            coalesce((SELECT json_agg(json_build_object('id', a.id, 'filename', a.filename, 'content_type', a.content_type,
+                                                        'size_bytes', a.size_bytes) ORDER BY a.created_at)
+                        FROM message_attachments a WHERE a.message_id = m.id), '[]'::json) AS attachments
        FROM messages m LEFT JOIN profiles p ON p.id = m.sender_id
       WHERE m.thread_id = $1 AND ($2::timestamptz IS NULL OR m.created_at > $2::timestamptz)
       ORDER BY m.created_at DESC LIMIT 200`, [threadId, after ?? null]);
@@ -201,7 +206,31 @@ export async function sendMessage(db: Db, me: Me, threadId: string, text: string
   const r = await db.query(
     `INSERT INTO messages (thread_id, sender_id, author_role, body) VALUES ($1, $2, 'student', $3)
      RETURNING id, created_at`, [threadId, me.id, seal(text)]);
-  return { id: r.rows[0].id, sender_id: me.id, sender_name: me.display_name, mine: true, body: text, created_at: r.rows[0].created_at };
+  return { id: r.rows[0].id, sender_id: me.id, sender_name: me.display_name, mine: true, body: text, created_at: r.rows[0].created_at, attachments: [] };
+}
+
+/**
+ * A message carrying one file (and an optional caption). The caller has already checked the file
+ * and stored it, encrypted, at storageKey; both rows are written in the caller's transaction.
+ */
+export async function sendAttachment(db: Db, me: Me, threadId: string, caption: string,
+  file: { id: string; filename: string; contentType: string; size: number; storageKey: string }): Promise<ChatMessage> {
+  const meta = await threadMeta(db, threadId);
+  if (meta.blocked) throw new HttpError(403, 'You can’t send messages in this conversation because one of you has blocked the other.');
+  await spend(db, me.id, 'message', meta.course_id);
+  await spend(db, me.id, 'upload', meta.course_id);
+  const r = await db.query(
+    `INSERT INTO messages (thread_id, sender_id, author_role, body) VALUES ($1, $2, 'student', $3)
+     RETURNING id, created_at`, [threadId, me.id, seal(caption)]);
+  await db.query(
+    `INSERT INTO message_attachments (id, message_id, thread_id, uploader_id, filename, content_type, size_bytes, storage_key)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    [file.id, r.rows[0].id, threadId, me.id, file.filename, file.contentType, file.size, file.storageKey]);
+  await audit(db, me.id, 'chat_file_shared', { thread_id: threadId, attachment_id: file.id, type: file.contentType, bytes: file.size });
+  return {
+    id: r.rows[0].id, sender_id: me.id, sender_name: me.display_name, mine: true, body: caption, created_at: r.rows[0].created_at,
+    attachments: [{ id: file.id, filename: file.filename, content_type: file.contentType, size_bytes: file.size }],
+  };
 }
 
 export async function block(db: Db, me: Me, userId: string) {

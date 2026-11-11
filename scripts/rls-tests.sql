@@ -131,6 +131,16 @@ BEGIN
   EXCEPTION WHEN insufficient_privilege THEN NULL; END;
   RAISE NOTICE 'ok    notifications are private and only the database writes them';
 
+  -- 12c. Chat files: only members of the chat see them, and nobody can attach to a chat they are not in.
+  SELECT count(*) INTO n FROM message_attachments a WHERE NOT is_thread_member(a.thread_id);
+  IF n <> 0 THEN RAISE EXCEPTION 'FAIL student sees files from chats they are not in'; END IF;
+  BEGIN
+    INSERT INTO message_attachments (message_id, thread_id, uploader_id, filename, content_type, size_bytes, storage_key)
+    VALUES (gen_random_uuid(), gen_random_uuid(), priya, 'x.pdf', 'application/pdf', 1, 'x');
+    RAISE EXCEPTION 'FAIL student attached a file to someone else''s chat';
+  EXCEPTION WHEN insufficient_privilege THEN NULL; END;
+  RAISE NOTICE 'ok    chat files are visible only inside their chat';
+
   -- 13. Users, sessions and the translation cache are unreadable directly.
   BEGIN
     PERFORM 1 FROM users LIMIT 1;
