@@ -1,0 +1,10 @@
+fastapi==0.115.6
+uvicorn==0.34.0
+pypdf==5.1.0
+fastembed==0.5.1
+psycopg[binary]==3.2.3
+pgvector==0.3.6
+httpx==0.28.1
+minio==7.2.15
+fpdf2==2.8.2
+python-dateutil==2.9.0.post0

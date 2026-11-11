@@ -1,0 +1,28 @@
+{
+  "_comment": "The only place model names live. Small = high-volume, low-difficulty. Strong = anything a user sees a mistake in.",
+  "small": "anthropic/claude-haiku-5.5",
+  "strong": "anthropic/claude-sonnet-5.5",
+  "embedding": "BAAI/bge-small-en-v1.5",
+  "embedding_dim": 384,
+  "use_for": {
+    "translate": "small",
+    "redact": "small",
+    "moderate_note": "small",
+    "flashcards": "small",
+    "guardrail_check": "small",
+    "detect_language": "small",
+    "study_answer": "strong",
+    "cluster_digest": "strong",
+    "syllabus_extract": "strong",
+    "calendar_agent": "strong",
+    "draft_answer": "strong"
+  },
+  "limits": {
+    "ai_calls_per_user_per_day": 300,
+    "questions_per_user_per_day": 20,
+    "messages_per_user_per_hour": 120,
+    "reads_per_user_per_hour": 600,
+    "cross_course_alert_threshold": 5,
+    "study_ai_top_chunks": 6
+  }
+}

@@ -1,0 +1,21 @@
+{
+	admin off
+	auto_https off
+}
+
+:80 {
+	# The one public entry point.
+	handle /ws* {
+		reverse_proxy chat:8080
+	}
+	handle {
+		reverse_proxy web:3000
+	}
+	header {
+		-Server
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		X-Frame-Options DENY
+		Permissions-Policy "camera=(), geolocation=(), microphone=(self)"
+	}
+}

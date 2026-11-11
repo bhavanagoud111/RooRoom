@@ -1,0 +1,448 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>RooRoom Poster (green)</title>
+<style>
+  @page { size: 48in 36in; margin: 0; }
+  :root {
+    /* CANSec template, recoloured: forest green + gold instead of navy + teal */
+    --navy: #133227; --navy2: #1d4a39; --teal: #2f7a57; --teal-l: #e1efe6; --gold: #e2a72e; --gold-l: #fdf3dc;
+    --panel: #f2f6f3; --ink: #1b2a23; --muted: #56675e; --line: #cfdcd4; --red: #b8452f;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 4608px; height: 3456px; }
+  body { background: #fff; color: var(--ink); font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+         font-size: 28.5px; line-height: 1.34; -webkit-print-color-adjust: exact; print-color-adjust: exact; overflow: hidden; }
+  b, strong { font-weight: 700; }
+
+  header { height: 420px; background: var(--navy); color: #fff; display: grid; grid-template-columns: 560px 1fr 760px;
+           align-items: center; padding: 0 106px; border-bottom: 12px solid var(--gold); }
+  .title { text-align: center; padding: 0 40px; }
+  .title h1 { font-weight: 700; font-size: 96px; line-height: 1.1; }
+  .title h1 em { font-style: normal; color: var(--gold); }
+  .title p { font-size: 40px; margin-top: 20px; color: #cfe3d7; }
+  .title p.tagline { font-size: 50px; font-weight: 700; color: #fff; font-style: italic; margin-top: 18px; }
+  .presenters { text-align: right; }
+  .presenters .lab { font-size: 32px; letter-spacing: 4px; text-transform: uppercase; color: #a8c9b6; }
+  .presenters .names { font-size: 56px; font-weight: 600; line-height: 1.22; margin-top: 10px; }
+  .presenters .venue { font-size: 34px; color: #cfe3d7; margin-top: 22px; }
+  .presenters .track { display: inline-block; margin-top: 14px; background: var(--gold); color: var(--navy); font-weight: 700; font-size: 34px; padding: 8px 22px; border-radius: 10px; }
+
+  main { display: grid; grid-template-columns: 1fr 1fr 1.08fr 1.08fr; grid-template-rows: auto 1fr; gap: 40px;
+         grid-template-areas: "a b r r" "a b d f"; padding: 42px 64px 48px; height: 3024px; }
+  .panel { background: var(--panel); border-radius: 22px; padding: 32px 40px; overflow: hidden; border-top: 8px solid var(--navy2); }
+  .a { grid-area: a; } .b { grid-area: b; } .r { grid-area: r; } .d { grid-area: d; } .f { grid-area: f; }
+  h2 { font-size: 54px; font-weight: 700; color: var(--navy); margin-bottom: 16px; }
+  h2 .num { color: var(--teal); margin-right: 14px; }
+  h3 { font-size: 29px; font-weight: 700; color: var(--teal); margin: 20px 0 9px; text-transform: uppercase; letter-spacing: 2px; }
+  .lead { font-size: 30px; }
+  .cap { font-size: 24px; color: var(--muted); margin-top: 8px; line-height: 1.3; }
+
+  .rq { background: var(--navy); color: #fff; border-radius: 16px; padding: 20px 28px; margin-top: 18px; font-size: 29px; }
+  .rq b { color: var(--gold); }
+
+  /* screenshots */
+  .shot { background: #fff; border-radius: 14px; padding: 10px; border: 2px solid var(--line); }
+  .shot img { width: 100%; display: block; border-radius: 8px; }
+  .shot .t { font-size: 25px; font-weight: 700; color: var(--navy2); padding: 8px 6px 2px; display: flex; justify-content: space-between; gap: 10px; }
+  .shot .t span { font-weight: 500; color: var(--muted); font-size: 22px; text-align: right; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+
+  /* agents */
+  .agents { display: grid; gap: 12px; }
+  .agent { background: #fff; border-radius: 14px; padding: 14px 20px; border-left: 10px solid var(--teal); }
+  .agent .hd { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .agent .nm { font-size: 31px; font-weight: 700; color: var(--navy); }
+  .agent .tx { font-size: 24.5px; line-height: 1.28; margin-top: 3px; }
+  .tags { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+  .tag { font-size: 19px; font-weight: 700; color: var(--navy2); background: var(--teal-l); border-radius: 6px; padding: 2px 9px; white-space: nowrap; }
+  .tag.g { background: var(--gold-l); color: #8a5d00; }
+  .grp { font-size: 23px; font-weight: 700; color: var(--muted); letter-spacing: 3px; text-transform: uppercase; margin: 12px 0 2px 4px; }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; }
+  .chip { background: var(--navy2); color: #fff; font-weight: 700; font-size: 27px; padding: 10px 20px; border-radius: 40px; }
+  .chip.g { background: var(--gold); color: var(--navy); }
+
+  /* security */
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin: 6px 0 16px; }
+  .stat { background: #fff; border-radius: 16px; padding: 14px 18px; text-align: center; }
+  .stat b { display: block; font-size: 58px; color: var(--teal); line-height: 1.05; }
+  .stat span { font-size: 22.5px; color: var(--muted); }
+  .sec { background: #fff; border-radius: 14px; padding: 12px 20px; margin-top: 10px; display: grid; grid-template-columns: 200px 1fr; gap: 16px; font-size: 24px; line-height: 1.28; border-left: 10px solid var(--navy2); }
+  .sec .k { font-size: 33px; font-weight: 700; color: var(--navy); }
+  .sec .k small { display: block; font-size: 19px; font-weight: 600; color: var(--muted); margin-top: 2px; }
+  ul.tight { margin-left: 34px; font-size: 25px; } ul.tight li { margin: 4px 0; }
+  table.cmp { width: 100%; border-collapse: collapse; background: #fff; border-radius: 14px; overflow: hidden; font-size: 23px; margin-top: 8px; }
+  table.cmp th { background: var(--navy2); color: #fff; padding: 9px 14px; text-align: center; font-weight: 600; }
+  table.cmp th:first-child { text-align: left; } table.cmp th.us { background: var(--gold); color: var(--navy); }
+  table.cmp td { padding: 7px 14px; border-top: 1px solid var(--line); text-align: center; }
+  table.cmp td:first-child { text-align: left; } table.cmp td.us { background: var(--gold-l); font-weight: 700; color: var(--teal); }
+  table.cmp .x { color: var(--red); font-weight: 700; } table.cmp .y { color: var(--teal); font-weight: 700; }
+  .prin { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 8px; }
+  .prin div { background: var(--navy2); color: #fff; border-radius: 14px; padding: 14px 16px; font-size: 22px; line-height: 1.28; }
+  .prin b { display: block; color: var(--gold); font-size: 26px; margin-bottom: 4px; }
+  .shot .d { font-size: 22px; color: var(--ink); padding: 2px 6px 6px; line-height: 1.28; }
+  .pains { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 14px; }
+  .pain { background: #fff; border-radius: 14px; padding: 14px 16px; border-top: 8px solid var(--red); font-size: 22.5px; line-height: 1.28; }
+  .pain b { display: block; font-size: 40px; color: var(--red); line-height: 1; margin-bottom: 6px; }
+  .steps { counter-reset: s; list-style: none; display: grid; gap: 12px; margin-top: 8px; }
+  .steps li { counter-increment: s; position: relative; background: #fff; border-radius: 14px; padding: 14px 18px 14px 82px; font-size: 24px; line-height: 1.28; }
+  .steps li::before { content: counter(s); position: absolute; left: 18px; top: 50%; transform: translateY(-50%); width: 48px; height: 48px; border-radius: 50%;
+                      background: var(--gold); color: var(--navy); display: grid; place-items: center; font-weight: 800; font-size: 26px; }
+  .steps b { color: var(--navy); }
+  .checks { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 18px; margin-top: 8px; }
+  .checks div { background: #fff; border-radius: 12px; padding: 10px 14px 10px 50px; position: relative; font-size: 22.5px; line-height: 1.26; }
+  .checks div::before { content: "\2713"; position: absolute; left: 14px; top: 9px; width: 26px; height: 26px; border-radius: 50%; background: var(--teal); color: #fff; font-size: 17px; font-weight: 800; display: grid; place-items: center; }
+  .checks b { color: var(--navy); }
+</style>
+</head>
+<body>
+<header>
+  <div><img src="umkc_logo.png" alt="UMKC" style="height:230px; display:block"></div>
+  <div class="title">
+    <h1>RooRoom: <em>Ten AI Agents</em><br>Inside Every UMKC Class</h1>
+    <p class="tagline">Breaking the barrier between students and professors</p>
+    <p style="margin-top:10px; font-size:32px">Every student can speak up, every professor can listen: AI agents built from LLM loops, over one shared course memory</p>
+  </div>
+  <div class="presenters">
+    <div class="lab">Presented by</div>
+    <div class="names">Bhavana Ediga<br><span style="opacity:.55">[Team member]</span></div>
+    <div class="track">Hackaroo '26 · AI Track</div>
+  </div>
+</header>
+
+<main>
+<!-- ============ COLUMN A: problem + the product ============ -->
+<section class="panel a">
+  <h2><span class="num">1</span>The problem</h2>
+  <p class="lead">Learning happens in one place, but help is scattered across chatbots, email and office hours.</p>
+  <div class="pains">
+    <div class="pain"><b>12 am</b>A general chatbot doesn't know <i>this</i> course, and happily does graded homework.</div>
+    <div class="pain"><b>30×</b>Professors answer the same question one email at a time, days later, in one language.</div>
+    <div class="pain"><b>0</b>Honest feedback never arrives, because nobody wants to be named.</div>
+  </div>
+  <div class="rq"><b>Our idea:</b> break the barrier between students and professors. Put a team of specialised AI agents inside every class. They share one course memory, so <b>one professor answer reaches every student</b>, in every language.</div>
+
+  <h2 style="margin-top:30px"><span class="num">2</span>The product</h2>
+  <p class="lead" style="font-size:26px; margin-bottom:12px">A working web app on real UMKC data: 4,951 courses from the catalog and every Fall 2026 section and professor.</p>
+  <div class="grid2">
+    <div class="shot"><img src="shots/01_landing.jpg" alt=""><div class="t">Before sign-in</div>
+      <div class="d">One scrolling page: every feature and what students can do.</div></div>
+    <div class="shot"><img src="shots/03_signup.jpg" alt=""><div class="t">Sign up</div>
+      <div class="d">Student or professor, @umkc.edu only; professors auto-linked to their courses.</div></div>
+  </div>
+  <div class="shot" style="margin-top:16px"><img src="shots/04_dashboard.jpg" alt=""><div class="t">After sign-in: dashboard <span>courses, deadlines, quick actions</span></div>
+    <div class="d">Every number is live: deadlines from the syllabus, new clarifications, and one-click jumps into each agent.</div></div>
+
+  <h3>A student's journey</h3>
+  <ol class="steps">
+    <li><b>Join</b> a course: search the UMKC catalog and pick your professor's section.</li>
+    <li><b>Study</b> with the Tutor Agent: answers, summaries and flashcards from course files.</li>
+    <li><b>Ask</b> anonymously; the Filter and Redactor agents clean it before anyone reads it.</li>
+    <li><b>Plan</b> by voice: the Calendar Agent books study time and syllabus deadlines.</li>
+  </ol>
+
+  <h3>Why not just a chatbot?</h3>
+  <table class="cmp">
+    <tr><th>What a student needs</th><th>General chatbot</th><th class="us">RooRoom</th></tr>
+    <tr><td>Knows this course's files</td><td class="x">✗</td><td class="us">✓ with source</td></tr>
+    <tr><td>Hints, not answers, on graded work</td><td class="x">✗</td><td class="us">✓</td></tr>
+    <tr><td>Reaches the professor anonymously</td><td class="x">✗</td><td class="us">✓</td></tr>
+    <tr><td>One answer reaches the whole class</td><td class="x">✗</td><td class="us">✓</td></tr>
+  </table>
+</section>
+
+<!-- ============ COLUMN B: the agents + AI techniques ============ -->
+<section class="panel b">
+  <h2><span class="num">3</span>Meet the agents</h2>
+  <p class="lead" style="font-size:27px">Each agent is an LLM loop with one job, its own instructions, and only the tools it needs. An orchestrator chains them.</p>
+
+  <div class="grp">Learning</div>
+  <div class="agents">
+    <div class="agent"><div class="hd"><span class="nm">Tutor Agent</span><div class="tags"><span class="tag">RAG</span><span class="tag">hybrid search</span></div></div>
+      <div class="tx">Answers only from this course's files and the professor's answers, and names the file and page. Summaries and interactive flashcards with real formulas.</div></div>
+    <div class="agent"><div class="hd"><span class="nm">Integrity Guard</span><div class="tags"><span class="tag">embeddings</span><span class="tag g">guardrail</span></div></div>
+      <div class="tx">Spots graded quiz and homework questions by meaning, switches the tutor to hints, and a second check rewrites any worked answer.</div></div>
+  </div>
+  <div class="grp">Ask the professor</div>
+  <div class="agents">
+    <div class="agent" style="border-left-color:var(--gold)"><div class="hd"><span class="nm">Filter Agent</span><div class="tags"><span class="tag g">filtering</span><span class="tag">NLP</span></div></div>
+      <div class="tx">Removes insults and slurs; refuses messages that are only abuse. Labels only, so a message can't talk it into approving itself.</div></div>
+    <div class="agent"><div class="hd"><span class="nm">Redactor Agent</span><div class="tags"><span class="tag">NLP</span></div></div>
+      <div class="tx">Strips names, IDs and anything that could identify the student.</div></div>
+    <div class="agent"><div class="hd"><span class="nm">Digest Agent</span><div class="tags"><span class="tag">clustering</span></div></div>
+      <div class="tx">Groups questions by meaning; at 3 students writes the professor a one-line digest.</div></div>
+    <div class="agent"><div class="hd"><span class="nm">Summarize Agent</span><div class="tags"><span class="tag">summarization</span></div></div>
+      <div class="tx">One click: every question or feedback note becomes "most common themes, with counts" plus next steps.</div></div>
+    <div class="agent"><div class="hd"><span class="nm">Answer Drafter</span><div class="tags"><span class="tag">generation</span></div></div>
+      <div class="tx">Drafts the reply; the professor edits and publishes it to the whole class.</div></div>
+  </div>
+  <div class="grp">Planning and everywhere</div>
+  <div class="agents">
+    <div class="agent"><div class="hd"><span class="nm">Calendar Voice Agent</span><div class="tags"><span class="tag g">agent loop</span><span class="tag">tool calling</span><span class="tag">voice-to-text</span></div></div>
+      <div class="tx">"Block 2–4 on Thursday for Quiz 4." Plans, calls calendar tools, observes, repeats (up to 6 steps); asks before deleting or double-booking.</div></div>
+    <div class="agent"><div class="hd"><span class="nm">Syllabus Reader</span><div class="tags"><span class="tag">extraction</span></div></div>
+      <div class="tx">Reads a syllabus PDF and sends every deadline to students' calendars.</div></div>
+    <div class="agent"><div class="hd"><span class="nm">Translator Agent</span><div class="tags"><span class="tag">NLP</span></div></div>
+      <div class="tx">English first; one click translates any answer, keeping formulas intact.</div></div>
+  </div>
+  <p class="cap"><b>Study buddies</b> are matched from what classmates study with the Tutor and their shared free time.</p>
+
+  <h2 style="margin-top:26px"><span class="num">4</span>AI inside</h2>
+  <div class="chips">
+    <span class="chip g">AI agents</span><span class="chip">agent loops</span><span class="chip g">orchestration</span>
+    <span class="chip">tool calling</span><span class="chip">retrieval (RAG)</span><span class="chip">embeddings</span>
+    <span class="chip">semantic clustering</span><span class="chip g">content filtering</span><span class="chip">NLP translation</span>
+    <span class="chip">summarization</span><span class="chip g">voice-to-text</span><span class="chip">text-to-speech</span>
+    <span class="chip">guardrails</span><span class="chip">LaTeX math rendering</span>
+  </div>
+
+  <h3 style="margin-top:22px">How we design our agents</h3>
+  <div class="prin">
+    <div><b>One job each</b>Small agents with narrow instructions are easier to test and harder to misuse.</div>
+    <div><b>Least privilege</b>Only the Calendar Agent has tools, and only on its owner's calendar.</div>
+    <div><b>Human in the loop</b>Professors approve answers; the calendar asks before risky changes.</div>
+  </div>
+
+  <h2 style="margin-top:24px"><span class="num">&#9679;</span>By the numbers</h2>
+  <div class="stats" style="grid-template-columns: repeat(2, 1fr)">
+    <div class="stat"><b>10</b><span>AI agents, each with one job</span></div>
+    <div class="stat"><b>4,951</b><span>real UMKC courses, all majors</span></div>
+    <div class="stat"><b>1,132</b><span>Fall 2026 professors to choose from</span></div>
+    <div class="stat"><b>1 click</b><span>to summarize every question</span></div>
+  </div>
+</section>
+
+<!-- ============ TOP RIGHT: workflow flowchart ============ -->
+<section class="panel r">
+  <h2><span class="num">5</span>Workflow</h2>
+  <svg viewBox="0 0 2140 1190" width="94%" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" style="display:block; margin:0 auto"><defs><marker id="a" markerWidth="11" markerHeight="11" refX="9" refY="5.5" orient="auto"><path d="M0,0 L11,5.5 L0,11 z" fill="#2b2b2b"/></marker></defs><rect x="0" y="0" width="2140" height="1190" fill="#fff" rx="14"/><rect x="920.0" y="12.0" width="300" height="60" rx="30.0" fill="#eef3ef" stroke="#2b2b2b" stroke-width="2.5"/>
+<text x="1070" y="50.3" text-anchor="middle" font-size="23" font-weight="700" fill="#1b1b1b">User signs in</text>
+<polyline points="1070,72 1070,112" fill="none" stroke="#2b2b2b" stroke-width="2.5" marker-end="url(#a)"/>
+<polygon points="1070,113.0 1235.0,168 1070,223.0 905.0,168" fill="#fff4d6" stroke="#2b2b2b" stroke-width="2.5"/>
+<text x="1070" y="175.9" text-anchor="middle" font-size="22" font-weight="600" fill="#1b1b1b">Student or professor?</text>
+<polyline points="905,168 560,168 560,245" fill="none" stroke="#2b2b2b" stroke-width="2.5" marker-end="url(#a)"/>
+<text x="740" y="158" text-anchor="middle" font-size="20" font-style="italic" fill="#444">Student</text>
+<polyline points="1235,168 1900,168 1900,228" fill="none" stroke="#2b2b2b" stroke-width="2.5" marker-end="url(#a)"/>
+<text x="1560" y="158" text-anchor="middle" font-size="20" font-style="italic" fill="#444">Professor</text>
+<rect x="400.0" y="245.0" width="320" height="62" rx="6" fill="#ffffff" stroke="#2b2b2b" stroke-width="2.5"/>
+<text x="560" y="283.9" text-anchor="middle" font-size="22" font-weight="400" fill="#1b1b1b">Pick a course</text>
+<polyline points="560,307 560,340" fill="none" stroke="#2b2b2b" stroke-width="2.5" marker-end="url(#a)"/>
+<polygon points="560,340.0 720.0,392 560,444.0 400.0,392" fill="#fff4d6" stroke="#2b2b2b" stroke-width="2.5"/>
+<text x="560" y="399.9" text-anchor="middle" font-size="22" font-weight="600" fill="#1b1b1b">What do you need?</text>
+<polyline points="560,444 560,468" fill="none" stroke="#2b2b2b" stroke-width="2.5"/>
+<polyline points="190,468 1450,468" fill="none" stroke="#2b2b2b" stroke-width="2.5"/>
+<polyline points="190,468 190,500" fill="none" stroke="#2b2b2b" stroke-width="2.5" marker-end="url(#a)"/>
+<text x="198" y="492" text-anchor="start" font-size="19" font-style="italic" fill="#444">Study</text>
+<polyline points="610,468 610,500" fill="none" stroke="#2b2b2b" stroke-width="2.5" marker-end="url(#a)"/>
+<text x="618" y="492" text-anchor="start" font-size="19" font-style="italic" fill="#444">Ask the professor</text>
+<polyline points="1030,468 1030,500" fill="none" stroke="#2b2b2b" stroke-width="2.5" marker-end="url(#a)"/>
+<text x="1038" y="492" text-anchor="start" font-size="19" font-style="italic" fill="#444">Give feedback</text>
+<polyline points="1450,468 1450,500" fill="none" stroke="#2b2b2b" stroke-width="2.5" marker-end="url(#a)"/>
+<text x="1458" y="492" text-anchor="start" font-size="19" font-style="italic" fill="#444">Plan my week</text>
+<rect x="30.0" y="500.0" width="320" height="62" rx="6" fill="#ffffff" stroke="#2b2b2b" stroke-width="2.5"/>
+<text x="190" y="538.9" text-anchor="middle" font-size="22" font-weight="400" fill="#1b1b1b">Type a question</text>
+<polyline points="190,562 190,588" fill="none" stroke="#2b2b2b" stroke-width="2.5" marker-end="url(#a)"/>
+<rect x="30.0" y="588.0" width="320" height="72" rx="6" fill="#dff0e4" stroke="#2b2b2b" stroke-width="2.5"/>
+<text x="190" y="618.9" text-anchor="middle" font-size="22" font-weight="400" fill="#1b1b1b">Search course files and</text>
+<text x="190" y="644.9" text-anchor="middle" font-size="22" font-weight="400" fill="#1b1b1b">the professor's answers</text>
+<polyline points="190,660 190,686" fill="none" stroke="#2b2b2b" stroke-width="2.5" marker-end="url(#a)"/>
+<polygon points="190,686.0 320.0,738 190,790.0 60.0,738" fill="#fff4d6" stroke="#2b2b2b" stroke-width="2.5"/>
+<text x="190" y="745.9" text-anchor="middle" font-size="22" font-weight="600" fill="#1b1b1b">Graded work?</text>
+<polyline points="60,738 60,820" fill="none" stroke="#2b2b2b" stroke-width="2.5" marker-end="url(#a)"/>
+<text x="40" y="728" text-anchor="middle" font-size="20" font-style="italic" fill="#444">No</text>
+<polyline points="320,738 320,820" fill="none" stroke="#2b2b2b" stroke-width="2.5" marker-end="url(#a)"/>
+<text x="340" y="728" text-anchor="middle" font-size="20" font-style="italic" fill="#444">Yes</text>
+<rect x="32.0" y="821.0" width="152" height="70" rx="6" fill="#dff0e4" stroke="#2b2b2b" stroke-width="2.5"/>
+<text x="108" y="863.2" text-anchor="middle" font-size="20" font-weight="400" fill="#1b1b1b">Full answer</text>
+<rect x="196.0" y="821.0" width="152" height="70" rx="6" fill="#dff0e4" stroke="#2b2b2b" stroke-width="2.5"/>
+<text x="272" y="863.2" text-anchor="middle" font-size="20" font-weight="400" fill="#1b1b1b">Hints only</text>
+<polyline points="108,891 108,915 190,915 190,940" fill="none" stroke="#2b2b2b" stroke-width="2.5" marker-end="url(#a)"/>
+<polyline points="272,891 272,915 190,915" fill="none" stroke="#2b2b2b" stroke-width="2.5"/>
+<rect x="30.0" y="942.0" width="320" height="66" rx="6" fill="#dff0e4" stroke="#2b2b2b" stroke-width="2.5"/>
+<text x="190" y="969.9" text-anchor="middle" font-size="22" font-weight="400" fill="#1b1b1b">Answer with its source,</text>
+<text x="190" y="995.9" text-anchor="middle" font-size="22" font-weight="400" fill="#1b1b1b">in English</text>
+<polyline points="190,1008 190,1036" fill="none" stroke="#2b2b2b" stroke-width="2.5" marker-end="url(#a)"/>
+<rect x="30.0" y="1039.0" width="320" height="62" rx="6" fill="#dff0e4" stroke="#2b2b2b" stroke-width="2.5"/>
+<text x="190" y="1065.4" text-anchor="middle" font-size="20" font-weight="400" fill="#1b1b1b">"Translate" button for</text>
+<text x="190" y="1089.0" text-anchor="middle" font-size="20" font-weight="400" fill="#1b1b1b">the student's language</text>
+<polyline points="190,1101 190,1124" fill="none" stroke="#2b2b2b" stroke-width="2.5" marker-end="url(#a)"/>
+<rect x="60.0" y="1125.0" width="260" height="56" rx="28.0" fill="#eef3ef" stroke="#2b2b2b" stroke-width="2.5"/>
+<text x="190" y="1160.6" text-anchor="middle" font-size="21" font-weight="700" fill="#1b1b1b">Student learns</text>
+<rect x="450.0" y="500.0" width="320" height="62" rx="6" fill="#ffffff" stroke="#2b2b2b" stroke-width="2.5"/>
+<text x="610" y="538.9" text-anchor="middle" font-size="22" font-weight="400" fill="#1b1b1b">Write a question</text>
+<polyline points="610,562 610,588" fill="none" stroke="#2b2b2b" stroke-width="2.5" marker-end="url(#a)"/>
+<polygon points="610,588.0 740.0,640 610,692.0 480.0,640" fill="#fff4d6" stroke="#2b2b2b" stroke-width="2.5"/>
+<text x="610" y="647.9" text-anchor="middle" font-size="22" font-weight="600" fill="#1b1b1b">Insults in it?</text>
+<polyline points="480,640 480,718" fill="none" stroke="#2b2b2b" stroke-width="2.5" marker-end="url(#a)"/>
+<text x="460" y="630" text-anchor="middle" font-size="20" font-style="italic" fill="#444">Yes</text>
+<polyline points="740,640 740,718" fill="none" stroke="#2b2b2b" stroke-width="2.5" marker-end="url(#a)"/>
+<text x="760" y="630" text-anchor="middle" font-size="20" font-style="italic" fill="#444">No</text>
+<rect x="452.0" y="719.0" width="152" height="70" rx="6" fill="#dff0e4" stroke="#2b2b2b" stroke-width="2.5"/>
+<text x="528" y="749.4" text-anchor="middle" font-size="20" font-weight="400" fill="#1b1b1b">Remove the</text>
+<text x="528" y="773.0" text-anchor="middle" font-size="20" font-weight="400" fill="#1b1b1b">insults</text>
+<rect x="616.0" y="719.0" width="152" height="70" rx="6" fill="#ffffff" stroke="#2b2b2b" stroke-width="2.5"/>
+<text x="692" y="749.4" text-anchor="middle" font-size="20" font-weight="400" fill="#1b1b1b">Keep as</text>
+<text x="692" y="773.0" text-anchor="middle" font-size="20" font-weight="400" fill="#1b1b1b">written</text>
+<polyline points="528,789 528,812 610,812 610,836" fill="none" stroke="#2b2b2b" stroke-width="2.5" marker-end="url(#a)"/>
+<polyline points="692,789 692,812 610,812" fill="none" stroke="#2b2b2b" stroke-width="2.5"/>
+<rect x="450.0" y="837.0" width="320" height="62" rx="6" fill="#dff0e4" stroke="#2b2b2b" stroke-width="2.5"/>
+<text x="610" y="875.9" text-anchor="middle" font-size="22" font-weight="400" fill="#1b1b1b">Remove names and IDs</text>
+<polyline points="610,899 610,924" fill="none" stroke="#2b2b2b" stroke-width="2.5" marker-end="url(#a)"/>
+<rect x="450.0" y="924.0" width="320" height="62" rx="6" fill="#dff0e4" stroke="#2b2b2b" stroke-width="2.5"/>
+<text x="610" y="962.9" text-anchor="middle" font-size="22" font-weight="400" fill="#1b1b1b">Group similar questions</text>
+<polyline points="610,986 610,1010" fill="none" stroke="#2b2b2b" stroke-width="2.5" marker-end="url(#a)"/>
+<polygon points="610,1010.0 740.0,1060 610,1110.0 480.0,1060" fill="#fff4d6" stroke="#2b2b2b" stroke-width="2.5"/>
+<text x="610" y="1067.9" text-anchor="middle" font-size="22" font-weight="600" fill="#1b1b1b">3+ students?</text>
+<text x="470" y="1050" text-anchor="end" font-size="20" font-style="italic" fill="#444">No: wait</text>
+<polyline points="610,1110 610,1180" fill="none" stroke="#2b2b2b" stroke-width="2.5"/>
+<text x="620" y="1140" text-anchor="start" font-size="19" font-style="italic" fill="#444">Yes: digest</text>
+<rect x="870.0" y="500.0" width="320" height="62" rx="6" fill="#ffffff" stroke="#2b2b2b" stroke-width="2.5"/>
+<text x="1030" y="538.9" text-anchor="middle" font-size="22" font-weight="400" fill="#1b1b1b">Write a feedback note</text>
+<polyline points="1030,562 1030,588" fill="none" stroke="#2b2b2b" stroke-width="2.5" marker-end="url(#a)"/>
+<polygon points="1030,588.0 1160.0,640 1030,692.0 900.0,640" fill="#fff4d6" stroke="#2b2b2b" stroke-width="2.5"/>
+<text x="1030" y="647.9" text-anchor="middle" font-size="22" font-weight="600" fill="#1b1b1b">Abusive?</text>
+<polyline points="900,640 900,718" fill="none" stroke="#2b2b2b" stroke-width="2.5" marker-end="url(#a)"/>
+<text x="880" y="630" text-anchor="middle" font-size="20" font-style="italic" fill="#444">Yes</text>
+<polyline points="1160,640 1160,718" fill="none" stroke="#2b2b2b" stroke-width="2.5" marker-end="url(#a)"/>
+<text x="1180" y="630" text-anchor="middle" font-size="20" font-style="italic" fill="#444">No</text>
+<rect x="872.0" y="719.0" width="152" height="70" rx="6" fill="#dff0e4" stroke="#2b2b2b" stroke-width="2.5"/>
+<text x="948" y="749.4" text-anchor="middle" font-size="20" font-weight="400" fill="#1b1b1b">Blocked,</text>
+<text x="948" y="773.0" text-anchor="middle" font-size="20" font-weight="400" fill="#1b1b1b">not sent</text>
+<rect x="1036.0" y="719.0" width="152" height="70" rx="6" fill="#dff0e4" stroke="#2b2b2b" stroke-width="2.5"/>
+<text x="1112" y="761.2" text-anchor="middle" font-size="20" font-weight="400" fill="#1b1b1b">Accepted</text>
+<polyline points="1112,789 1112,812 1030,812 1030,836" fill="none" stroke="#2b2b2b" stroke-width="2.5" marker-end="url(#a)"/>
+<rect x="870.0" y="837.0" width="320" height="62" rx="6" fill="#dff0e4" stroke="#2b2b2b" stroke-width="2.5"/>
+<text x="1030" y="875.9" text-anchor="middle" font-size="22" font-weight="400" fill="#1b1b1b">Remove names</text>
+<polyline points="1030,899 1030,924" fill="none" stroke="#2b2b2b" stroke-width="2.5" marker-end="url(#a)"/>
+<rect x="870.0" y="924.0" width="320" height="62" rx="6" fill="#ffffff" stroke="#2b2b2b" stroke-width="2.5"/>
+<text x="1030" y="962.9" text-anchor="middle" font-size="22" font-weight="400" fill="#1b1b1b">Held for the daily batch</text>
+<polyline points="1030,986 1030,1010" fill="none" stroke="#2b2b2b" stroke-width="2.5" marker-end="url(#a)"/>
+<rect x="870.0" y="1010.0" width="320" height="62" rx="6" fill="#ffffff" stroke="#2b2b2b" stroke-width="2.5"/>
+<text x="1030" y="1048.9" text-anchor="middle" font-size="22" font-weight="400" fill="#1b1b1b">Professor's inbox</text>
+<polyline points="1030,1072 1030,1180" fill="none" stroke="#2b2b2b" stroke-width="2.5"/>
+<rect x="1290.0" y="500.0" width="320" height="62" rx="6" fill="#ffffff" stroke="#2b2b2b" stroke-width="2.5"/>
+<text x="1450" y="538.9" text-anchor="middle" font-size="22" font-weight="400" fill="#1b1b1b">Speak or type a request</text>
+<polyline points="1450,562 1450,588" fill="none" stroke="#2b2b2b" stroke-width="2.5" marker-end="url(#a)"/>
+<rect x="1290.0" y="588.0" width="320" height="62" rx="6" fill="#dff0e4" stroke="#2b2b2b" stroke-width="2.5"/>
+<text x="1450" y="626.9" text-anchor="middle" font-size="22" font-weight="400" fill="#1b1b1b">Speech to text</text>
+<polyline points="1450,650 1450,676" fill="none" stroke="#2b2b2b" stroke-width="2.5" marker-end="url(#a)"/>
+<rect x="1290.0" y="677.0" width="320" height="74" rx="6" fill="#dff0e4" stroke="#2b2b2b" stroke-width="2.5"/>
+<text x="1450" y="708.9" text-anchor="middle" font-size="22" font-weight="400" fill="#1b1b1b">Agent plans the change,</text>
+<text x="1450" y="734.9" text-anchor="middle" font-size="22" font-weight="400" fill="#1b1b1b">uses a calendar tool</text>
+<polyline points="1610,724 1636,724 1636,700 1612,700" fill="none" stroke="#2b2b2b" stroke-width="2.5" marker-end="url(#a)"/>
+<text x="1646" y="696" text-anchor="start" font-size="18" font-style="italic" fill="#444">repeat</text>
+<text x="1646" y="750" text-anchor="start" font-size="18" font-style="italic" fill="#444">up to 6×</text>
+<polyline points="1450,751 1450,778" fill="none" stroke="#2b2b2b" stroke-width="2.5" marker-end="url(#a)"/>
+<polygon points="1450,778.0 1590.0,830 1450,882.0 1310.0,830" fill="#fff4d6" stroke="#2b2b2b" stroke-width="2.5"/>
+<text x="1450" y="825.2" text-anchor="middle" font-size="21" font-weight="600" fill="#1b1b1b">Delete or</text>
+<text x="1450" y="849.9" text-anchor="middle" font-size="21" font-weight="600" fill="#1b1b1b">double-book?</text>
+<polyline points="1310,830 1310,908" fill="none" stroke="#2b2b2b" stroke-width="2.5" marker-end="url(#a)"/>
+<text x="1292" y="820" text-anchor="middle" font-size="20" font-style="italic" fill="#444">Yes</text>
+<polyline points="1590,830 1590,908" fill="none" stroke="#2b2b2b" stroke-width="2.5" marker-end="url(#a)"/>
+<text x="1608" y="820" text-anchor="middle" font-size="20" font-style="italic" fill="#444">No</text>
+<rect x="1292.0" y="909.0" width="152" height="70" rx="6" fill="#ffffff" stroke="#2b2b2b" stroke-width="2.5"/>
+<text x="1368" y="939.4" text-anchor="middle" font-size="20" font-weight="400" fill="#1b1b1b">Ask the student</text>
+<text x="1368" y="963.0" text-anchor="middle" font-size="20" font-weight="400" fill="#1b1b1b">first</text>
+<rect x="1456.0" y="909.0" width="152" height="70" rx="6" fill="#ffffff" stroke="#2b2b2b" stroke-width="2.5"/>
+<text x="1532" y="951.2" text-anchor="middle" font-size="20" font-weight="400" fill="#1b1b1b">Save it</text>
+<polyline points="1368,979 1368,1002 1450,1002 1450,1026" fill="none" stroke="#2b2b2b" stroke-width="2.5" marker-end="url(#a)"/>
+<polyline points="1532,979 1532,1002 1450,1002" fill="none" stroke="#2b2b2b" stroke-width="2.5"/>
+<rect x="1290.0" y="1019.0" width="320" height="62" rx="6" fill="#ffffff" stroke="#2b2b2b" stroke-width="2.5"/>
+<text x="1450" y="1057.9" text-anchor="middle" font-size="22" font-weight="400" fill="#1b1b1b">Calendar updated</text>
+<polyline points="1450,1081 1450,1110" fill="none" stroke="#2b2b2b" stroke-width="2.5" marker-end="url(#a)"/>
+<rect x="1310.0" y="1111.0" width="280" height="50" rx="25.0" fill="#eef3ef" stroke="#2b2b2b" stroke-width="2.5"/>
+<text x="1450" y="1143.6" text-anchor="middle" font-size="21" font-weight="700" fill="#1b1b1b">Week is planned</text>
+<polyline points="610,1180 1700,1180 1700,352 1733,352" fill="none" stroke="#2b2b2b" stroke-width="2.5" marker-end="url(#a)"/>
+<rect x="1735.0" y="228.0" width="330" height="62" rx="6" fill="#ffffff" stroke="#2b2b2b" stroke-width="2.5"/>
+<text x="1900" y="266.9" text-anchor="middle" font-size="22" font-weight="400" fill="#1b1b1b">Professor dashboard</text>
+<polyline points="1900,290 1900,318" fill="none" stroke="#2b2b2b" stroke-width="2.5" marker-end="url(#a)"/>
+<rect x="1735.0" y="319.0" width="330" height="66" rx="6" fill="#ffffff" stroke="#2b2b2b" stroke-width="2.5"/>
+<text x="1900" y="347.2" text-anchor="middle" font-size="21" font-weight="400" fill="#1b1b1b">Digests, every question,</text>
+<text x="1900" y="371.9" text-anchor="middle" font-size="21" font-weight="400" fill="#1b1b1b">feedback (no names)</text>
+<polyline points="1900,385 1900,404" fill="none" stroke="#2b2b2b" stroke-width="2.5" marker-end="url(#a)"/>
+<rect x="1735.0" y="405.0" width="330" height="62" rx="6" fill="#ffffff" stroke="#2b2b2b" stroke-width="2.5"/>
+<text x="1900" y="443.9" text-anchor="middle" font-size="22" font-weight="400" fill="#1b1b1b">Clicks "Summarize"</text>
+<polyline points="1900,467 1900,492" fill="none" stroke="#2b2b2b" stroke-width="2.5" marker-end="url(#a)"/>
+<rect x="1735.0" y="492.0" width="330" height="70" rx="6" fill="#dff0e4" stroke="#2b2b2b" stroke-width="2.5"/>
+<text x="1900" y="521.9" text-anchor="middle" font-size="22" font-weight="400" fill="#1b1b1b">Common themes,</text>
+<text x="1900" y="547.9" text-anchor="middle" font-size="22" font-weight="400" fill="#1b1b1b">with counts</text>
+<polyline points="1900,562 1900,587" fill="none" stroke="#2b2b2b" stroke-width="2.5" marker-end="url(#a)"/>
+<rect x="1735.0" y="588.0" width="330" height="62" rx="6" fill="#dff0e4" stroke="#2b2b2b" stroke-width="2.5"/>
+<text x="1900" y="626.9" text-anchor="middle" font-size="22" font-weight="400" fill="#1b1b1b">Drafts an answer</text>
+<polyline points="1900,650 1900,675" fill="none" stroke="#2b2b2b" stroke-width="2.5" marker-end="url(#a)"/>
+<rect x="1735.0" y="676.0" width="330" height="62" rx="6" fill="#ffffff" stroke="#2b2b2b" stroke-width="2.5"/>
+<text x="1900" y="714.9" text-anchor="middle" font-size="22" font-weight="400" fill="#1b1b1b">Edits and publishes</text>
+<polyline points="1900,738 1900,763" fill="none" stroke="#2b2b2b" stroke-width="2.5" marker-end="url(#a)"/>
+<rect x="1735.0" y="763.0" width="330" height="70" rx="6" fill="#ffffff" stroke="#2b2b2b" stroke-width="2.5"/>
+<text x="1900" y="792.9" text-anchor="middle" font-size="22" font-weight="400" fill="#1b1b1b">Saved to the shared</text>
+<text x="1900" y="818.9" text-anchor="middle" font-size="22" font-weight="400" fill="#1b1b1b">course memory</text>
+<polyline points="1900,833 1900,858" fill="none" stroke="#2b2b2b" stroke-width="2.5" marker-end="url(#a)"/>
+<rect x="1735.0" y="858.0" width="330" height="66" rx="6" fill="#dff0e4" stroke="#2b2b2b" stroke-width="2.5"/>
+<text x="1900" y="885.9" text-anchor="middle" font-size="22" font-weight="400" fill="#1b1b1b">Translated for each</text>
+<text x="1900" y="911.9" text-anchor="middle" font-size="22" font-weight="400" fill="#1b1b1b">student</text>
+<polyline points="1900,924 1900,949" fill="none" stroke="#2b2b2b" stroke-width="2.5" marker-end="url(#a)"/>
+<rect x="1735.0" y="950.0" width="330" height="70" rx="35.0" fill="#1d4a39" stroke="#2b2b2b" stroke-width="2.5"/>
+<text x="1900" y="980.2" text-anchor="middle" font-size="21" font-weight="700" fill="#fff">Whole class gets</text>
+<text x="1900" y="1004.9" text-anchor="middle" font-size="21" font-weight="700" fill="#fff">one answer</text>
+<text x="1900" y="1052" text-anchor="middle" font-size="19" font-style="italic" fill="#444">The Study AI uses it from now on</text>
+<rect x="1760" y="1088" width="40" height="26" rx="4" fill="#dff0e4" stroke="#2b2b2b" stroke-width="2"/>
+<text x="1812" y="1108" text-anchor="start" font-size="19" font-style="italic" fill="#444">done by an AI agent</text>
+<polygon points="1780,1124 1800,1138 1780,1152 1760,1138" fill="#fff4d6" stroke="#2b2b2b" stroke-width="2"/>
+<text x="1812" y="1145" text-anchor="start" font-size="19" font-style="italic" fill="#444">decision (yes / no)</text></svg>
+  <p class="cap">Green steps are done by an AI agent; white steps are the student or professor. The question and feedback paths both end in the professor's view.</p>
+</section>
+
+<!-- ============ BOTTOM RIGHT 1: students' agents at work ============ -->
+<section class="panel d">
+  <h2><span class="num">6</span>The agents at work</h2>
+  <div class="grid2">
+    <div class="shot"><img src="shots/06_study_ai.jpg" alt=""><div class="t">Tutor Agent <span>formulas typeset</span></div>
+      <div class="d">Answers from the right page; one click translates.</div></div>
+    <div class="shot"><img src="shots/07_flashcards.jpg" alt=""><div class="t">Flashcards <span>interactive deck</span></div>
+      <div class="d">Flip, mark "got it", review what's left.</div></div>
+    <div class="shot"><img src="shots/08_ask_filtered.jpg" alt=""><div class="t">Filter Agent <span>abuse removed</span></div>
+      <div class="d">"Hey idiot, …" reaches the professor as "Hey, …"</div></div>
+    <div class="shot"><img src="shots/09_calendar_agent.jpg" alt=""><div class="t">Calendar Agent <span>asks first</span></div>
+      <div class="d">Finds the overlap with a movie, asks before booking.</div></div>
+    <div class="shot"><img src="shots/10_buddies.jpg" alt=""><div class="t">Study Buddies <span>matched by agents</span></div>
+      <div class="d">Same module, times you're both free.</div></div>
+    <div class="shot"><img src="shots/05_course_home.jpg" alt=""><div class="t">Course page <span>one hub per class</span></div>
+      <div class="d">Deadlines, materials and every agent in one place.</div></div>
+  </div>
+</section>
+
+<!-- ============ BOTTOM RIGHT 2: professor + security ============ -->
+<section class="panel f">
+  <h2><span class="num">7</span>The professor's view</h2>
+  <div class="grid2">
+    <div class="shot"><img src="shots/11_prof_digest.jpg" alt=""><div class="t">Digest Agent <span>4 students, one line</span></div>
+      <div class="d">Four students asked the same thing in different words; the professor sees one sentence.</div></div>
+    <div class="shot"><img src="shots/12_prof_summarize.jpg" alt=""><div class="t">Summarize Agent <span>14 → themes</span></div>
+      <div class="d">"6 students: what does 'well tested' mean?" instead of thirty separate emails.</div></div>
+  </div>
+  <div class="checks">
+    <div><b>Read every question</b>, names removed, never who asked</div>
+    <div><b>One-click summary</b> of all questions or all feedback</div>
+    <div><b>Digest at 3+ students</b>, with a drafted answer to edit</div>
+    <div><b>Publish once</b>: every student, every language, plus the Tutor</div>
+    <div><b>Reply to anonymous notes</b> without ever unmasking</div>
+    <div><b>Upload a syllabus</b>: deadlines reach every calendar</div>
+  </div>
+
+  <h2 style="margin-top:24px"><span class="num">8</span>Securing the agents</h2>
+  <div class="stats">
+    <div class="stat"><b>18/18</b><span>red-team attacks blocked</span></div>
+    <div class="stat"><b>0</b><span>outside links in AI output</span></div>
+    <div class="stat"><b>100%</b><span>tables under row security</span></div>
+  </div>
+  <div class="sec"><div class="k">Trust<small>text is data</small></div><div>Student text and PDFs reach agents as labelled untrusted data, never instructions. Agents that read it have no tools.</div></div>
+  <div class="sec"><div class="k">Authority<small>see only what you may</small></div><div>Every agent query runs as the signed-in user under database row rules. No master key.</div></div>
+  <div class="sec"><div class="k">Egress<small>nothing leaves</small></div><div>Links and images are stripped from AI output; servers reach only the model endpoint.</div></div>
+
+  <p class="cap" style="margin-top:10px"><b>Next:</b> one-time email codes (MFA) at sign-in, then a one-course pilot measuring answer quality and professor time saved.</p>
+</section>
+</main>
+</body>
+</html>

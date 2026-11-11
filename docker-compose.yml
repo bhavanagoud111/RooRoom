@@ -1,0 +1,133 @@
+# RooRoom: one compose file, the same stack on every laptop and on the server.
+#
+# Networks
+#   internal - no route to the internet. Postgres, object storage, the app, worker and chat live here.
+#   outbound - the egress proxy only. It lets traffic through to openrouter.ai and nothing else.
+#   edge     - the gateway only. It is the single published port (127.0.0.1:3300).
+#
+# So: Postgres and object storage have no public port, and the only way out of the stack is OpenRouter.
+
+name: rooroom
+
+x-proxy-env: &proxy-env
+  HTTPS_PROXY: http://egress:8888
+  HTTP_PROXY: http://egress:8888
+  NO_PROXY: db,storage,worker,web,chat,localhost,127.0.0.1
+
+services:
+  db:
+    image: pgvector/pgvector:0.8.0-pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: rooroom
+      POSTGRES_USER: rooroom_owner
+      POSTGRES_PASSWORD: ${OWNER_DB_PASSWORD}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD}
+      WORKER_DB_PASSWORD: ${WORKER_DB_PASSWORD}
+      MODERATOR_DB_PASSWORD: ${MODERATOR_DB_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    networks: [internal]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rooroom_owner -d rooroom"]
+      interval: 3s
+      retries: 30
+
+  storage:
+    # S3-compatible object storage for PDFs (SeaweedFS). MinIO stopped publishing free images,
+    # so we use SeaweedFS's S3 gateway; the app and worker talk to it with the MinIO S3 SDKs.
+    image: chrislusf/seaweedfs:3.80
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        cat > /tmp/s3.json <<JSON
+        {"identities":[{"name":"rooroom","credentials":[{"accessKey":"$${S3_ACCESS_KEY}","secretKey":"$${S3_SECRET_KEY}"}],"actions":["Admin","Read","Write","List","Tagging"]}]}
+        JSON
+        exec weed server -dir=/data -s3 -s3.port=8333 -s3.config=/tmp/s3.json -master.volumeSizeLimitMB=256 -volume.max=20
+    environment:
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - objectdata:/data
+    networks: [internal]
+
+  egress:
+    build: ./proxy
+    restart: unless-stopped
+    networks: [internal, outbound]
+
+  worker:
+    build: ./worker
+    restart: unless-stopped
+    depends_on:
+      db: { condition: service_healthy }
+      storage: { condition: service_started }
+    environment:
+      <<: *proxy-env
+      DATABASE_URL: postgresql://rooroom_worker:${WORKER_DB_PASSWORD}@db:5432/rooroom
+      MINIO_ENDPOINT: storage:8333
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      WORKER_TOKEN: ${WORKER_TOKEN}
+    volumes:
+      - ./config:/config:ro
+    networks: [internal]
+
+  web:
+    build: ./web
+    restart: unless-stopped
+    depends_on:
+      db: { condition: service_healthy }
+      worker: { condition: service_started }
+    environment:
+      <<: *proxy-env
+      DATABASE_URL: postgresql://rooroom_app:${APP_DB_PASSWORD}@db:5432/rooroom
+      MODERATOR_DATABASE_URL: postgresql://rooroom_moderator:${MODERATOR_DB_PASSWORD}@db:5432/rooroom
+      MINIO_ENDPOINT: storage
+      MINIO_PORT: "8333"
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      CONTENT_KEY: ${CONTENT_KEY}
+      CHAT_TICKET_SECRET: ${CHAT_TICKET_SECRET}
+      WORKER_URL: http://worker:8000
+      WORKER_TOKEN: ${WORKER_TOKEN}
+      PUBLIC_ORIGIN: ${PUBLIC_ORIGIN}
+      ALLOWED_EMAIL_DOMAIN: ${ALLOWED_EMAIL_DOMAIN}
+      DEV_SHOW_CODES: ${DEV_SHOW_CODES}
+    volumes:
+      - ./config:/config:ro
+    networks: [internal]
+
+  chat:
+    build: ./chat
+    restart: unless-stopped
+    depends_on:
+      db: { condition: service_healthy }
+    environment:
+      DATABASE_URL: postgresql://rooroom_app:${APP_DB_PASSWORD}@db:5432/rooroom
+      CHAT_TICKET_SECRET: ${CHAT_TICKET_SECRET}
+    networks: [internal]
+
+  gateway:
+    image: caddy:2.10.0-alpine
+    restart: unless-stopped
+    depends_on: [web, chat]
+    ports:
+      - "127.0.0.1:3300:80"
+    volumes:
+      - ./proxy/Caddyfile:/etc/caddy/Caddyfile:ro
+    networks: [internal, edge]
+
+networks:
+  internal:
+    internal: true
+  outbound: {}
+  edge: {}
+
+volumes:
+  pgdata: {}
+  objectdata: {}

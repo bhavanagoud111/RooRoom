@@ -1,0 +1,91 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-sans: "Inter Variable";
+  color-scheme: light;
+}
+
+body {
+  @apply bg-paper text-ink antialiased;
+  font-feature-settings: "cv11", "ss01";
+}
+
+h1, h2, h3 { @apply tracking-tight; }
+
+:focus-visible {
+  outline: 2px solid #2563EB;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+@layer components {
+  /* Buttons: one height (36px), one radius, three weights. */
+  .btn {
+    @apply inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-lg px-3.5 text-sm font-medium transition-colors
+           disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary { @apply btn bg-roo-600 text-white hover:bg-roo-700 active:bg-roo-800; }
+  .btn-gold { @apply btn-primary; }
+  .btn-ghost { @apply btn text-ink-soft hover:bg-slate-100 hover:text-ink; }
+  .btn-outline { @apply btn border border-line bg-white text-ink hover:bg-slate-50 hover:border-slate-300; }
+  .btn-danger { @apply btn border border-red-200 bg-white text-red-700 hover:bg-red-50; }
+  .btn-sm { @apply h-8 px-2.5 text-xs; }
+
+  /* Surfaces */
+  .card { @apply rounded-xl border border-line bg-white shadow-card; }
+  .card-header { @apply flex items-center justify-between gap-3 border-b border-line px-5 py-3.5; }
+  .card-title { @apply flex items-center gap-2 text-sm font-semibold text-ink; }
+  .card-link { @apply inline-flex items-center gap-1 text-xs font-medium text-roo-600 hover:text-roo-800 hover:underline; }
+
+  /* Forms */
+  .input {
+    @apply w-full rounded-lg border border-line bg-white px-3 py-2 text-sm text-ink placeholder:text-slate-400
+           focus:border-roo-500 focus:outline-none focus:ring-2 focus:ring-roo-100 disabled:bg-slate-50;
+  }
+  .label { @apply mb-1.5 block text-sm font-medium text-ink-soft; }
+  .help { @apply mt-1 text-xs text-ink-mute; }
+
+  /* Small status labels: square-ish, not pills. */
+  .chip { @apply inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium; }
+
+  /* Section eyebrow */
+  .eyebrow { @apply text-xs font-semibold uppercase tracking-wider text-ink-mute; }
+
+  .prose-rr { @apply text-[15px] leading-relaxed text-ink; }
+  .prose-rr p { @apply my-2; }
+  .prose-rr ul { @apply my-2 list-disc pl-5; }
+  .prose-rr ol { @apply my-2 list-decimal pl-5; }
+  .prose-rr li { @apply my-0.5; }
+  .prose-rr strong { @apply font-semibold; }
+  .prose-rr code { @apply rounded bg-slate-100 px-1 py-0.5 text-[13px]; }
+  .prose-rr pre { @apply my-2 overflow-x-auto rounded-lg bg-slate-900 p-3 text-[13px] text-white; }
+  .prose-rr pre code { @apply bg-transparent p-0 text-white; }
+  .prose-rr h1, .prose-rr h2, .prose-rr h3 { @apply mt-3 mb-1 text-base font-semibold; }
+  .prose-rr blockquote { @apply border-l-4 border-line pl-3 text-ink-soft; }
+  .prose-rr a { @apply text-roo-600 underline; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation-duration: .01ms !important; }
+}
+
+/* FullCalendar theming */
+.fc { --fc-border-color: #E2E8F0; --fc-today-bg-color: #EFF6FF; --fc-event-border-color: transparent;
+      --fc-page-bg-color: #fff; --fc-neutral-bg-color: #F8FAFC; font-size: 13px; }
+.fc .fc-toolbar { flex-wrap: wrap; gap: 8px; }
+.fc .fc-toolbar-title { font-size: 1.125rem; font-weight: 600; color: #111827; }
+.fc .fc-button { height: 34px; padding: 0 12px; font-size: 13px; font-weight: 500; border-radius: 8px; box-shadow: none !important; }
+.fc .fc-button-primary { background: #fff; color: #111827; border-color: #E2E8F0; text-transform: capitalize; }
+.fc .fc-button-primary:not(:disabled).fc-button-active, .fc .fc-button-primary:not(:disabled):active { background: #2563EB; border-color: #2563EB; color: #fff; }
+.fc .fc-button-primary:hover { background: #F8FAFC; color: #111827; border-color: #CBD5E1; }
+.fc .fc-col-header-cell-cushion { font-size: 12px; font-weight: 600; color: #64748B; text-transform: uppercase; letter-spacing: .04em; padding: 8px 4px; }
+.fc .fc-timegrid-slot-label-cushion, .fc .fc-daygrid-day-number { color: #64748B; font-size: 12px; }
+.fc-event { border-radius: 6px; padding: 1px 3px; }
+.fc-event.rr-suggested { opacity: .8; border: 1.5px dashed rgba(17,24,39,.45) !important; }
+
+/* Typeset formulas (KaTeX): readable size, scroll sideways instead of clipping */
+.katex { font-size: 1.08em; }
+.katex-display { margin: 0.5em 0; padding: 0.35em 0; overflow-x: auto; overflow-y: hidden; }
+.prose-rr .katex-display > .katex { white-space: nowrap; }

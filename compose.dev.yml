@@ -1,0 +1,13 @@
+# Development override: hot-reloading web app with the source bind-mounted.
+#   docker compose -f docker-compose.yml -f compose.dev.yml up -d
+services:
+  web:
+    build: { context: ./web, target: dev }
+    environment:
+      NODE_ENV: development
+      WATCHPACK_POLLING: "true"
+    volumes:
+      - ./web:/app
+      - /app/node_modules
+      - /app/.next
+      - ./config:/config:ro
