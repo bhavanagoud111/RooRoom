@@ -48,13 +48,15 @@ export async function translate(text: string, target: string,
 
 /** Detects the language and returns an English version in one cheap call. */
 export async function toEnglish(text: string, source: Source): Promise<{ lang: string; english: string }> {
-  // Plain ASCII with common English words: skip the call.
-  if (/^[\x00-\x7F]*$/.test(text) && /\b(the|is|are|and|what|how|do|does|i|to|for|in|of)\b/i.test(text)) {
-    return { lang: 'en', english: text };
-  }
+  // No "looks like English" shortcut: students often mix languages in English letters
+  // ("deadline ni extend cheyagalara?"), which a word check mistakes for English (2026-11-11).
+  // Only questions, notes and professor answers come through here, so one small call each is fine.
   const r = await llmJson<{ lang: string; english: string }>(
     'translate',
-    'Detect the language of the text in the <untrusted> tag and translate it into English. ' +
+    'Detect the language of the text in the <untrusted> tag and translate it into natural English. ' +
+      'The text may mix languages, for example Telugu or Hindi written in English letters with English words in between ' +
+      '("naaku slow start artham kaaledu"). Translate the whole meaning into English; if it is already fully English, return it unchanged. ' +
+      'For mixed text, "lang" is the main non-English language. ' +
       'Return JSON {"lang": "<ISO 639-1 code>", "english": "<English translation>"}. ' +
       'Keep technical terms and numbers exactly. ' + DATA_RULE,
     untrusted(source, text),
