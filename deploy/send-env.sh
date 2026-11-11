@@ -13,7 +13,7 @@ KEY=$(grep '^OPENROUTER_API_KEY=' .env | cut -d= -f2-)
 [ -n "$KEY" ] || { echo "No OPENROUTER_API_KEY in local .env" >&2; exit 1; }
 r() { openssl rand -hex 24; }
 
-ssh "$HOST" "bash -s -- '$EXPECTED'" <<REMOTE
+ssh ${SSH_OPTS:-} "$HOST" "bash -s -- '$EXPECTED'" <<REMOTE
 set -euo pipefail
 [ "\$(hostname)" = "\$1" ] || { echo "REFUSING: this is '\$(hostname)', not \$1." >&2; exit 1; }
 F="\$HOME/rooroom/shared/.env"
