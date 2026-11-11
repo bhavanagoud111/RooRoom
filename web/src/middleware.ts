@@ -5,7 +5,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 // This is the Canvas lesson: the professor dashboard and report review screens are privileged
 // consoles where student-written text meets the most powerful sessions.
 
-const PUBLIC_PATHS = ['/login', '/signup', '/verify', '/api/auth', '/about', '/landing/'];
+const PUBLIC_PATHS = ['/login', '/signup', '/verify', '/forgot', '/api/auth', '/about', '/landing/'];
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;

@@ -5,9 +5,26 @@ import { useRouter } from 'next/navigation';
 import { api, Spinner } from '@/components/client';
 
 import clsx from 'clsx';
-import { GraduationCap, UserRound } from 'lucide-react';
+import { Eye, EyeOff, GraduationCap, UserRound } from 'lucide-react';
 
 type Role = 'student' | 'professor';
+
+/** Password box with an eye button that shows or hides what is typed. */
+function PasswordInput({ id, value, onChange, autoComplete, minLength, invalid }: {
+  id: string; value: string; onChange: (v: string) => void; autoComplete: string; minLength?: number; invalid?: boolean;
+}) {
+  const [show, setShow] = useState(false);
+  return (
+    <div className="relative">
+      <input id={id} className={clsx('input pr-11', invalid && 'border-red-400 focus:border-red-500')} type={show ? 'text' : 'password'}
+        autoComplete={autoComplete} minLength={minLength} value={value} onChange={(e) => onChange(e.target.value)} required />
+      <button type="button" onClick={() => setShow(!show)} aria-label={show ? 'Hide password' : 'Show password'} aria-pressed={show}
+        className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-lg text-ink-mute hover:text-ink">
+        {show ? <EyeOff className="h-4 w-4" aria-hidden /> : <Eye className="h-4 w-4" aria-hidden />}
+      </button>
+    </div>
+  );
+}
 
 
 /** "Are you a student or professor?" with two tabs; used on sign-in and sign-up. */
@@ -72,9 +89,11 @@ export function LoginForm() {
             onChange={(e) => setEmail(e.target.value)} placeholder="you@umkc.edu" required />
         </div>
         <div>
-          <label className="label" htmlFor="pw">Password</label>
-          <input id="pw" className="input" type="password" autoComplete="current-password" value={password}
-            onChange={(e) => setPassword(e.target.value)} required />
+          <div className="flex items-baseline justify-between">
+            <label className="label" htmlFor="pw">Password</label>
+            <Link className="text-xs font-semibold text-roo-600 hover:underline" href={`/forgot${email ? `?email=${encodeURIComponent(email)}` : ''}`}>Forgot password?</Link>
+          </div>
+          <PasswordInput id="pw" autoComplete="current-password" value={password} onChange={setPassword} />
         </div>
         {err && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">{err}</p>}
         <button className="btn-primary w-full" disabled={busy}>{busy && <Spinner />}{role === 'student' ? 'Sign in as student' : 'Sign in as professor'}</button>
@@ -90,11 +109,14 @@ export function SignupForm({ initialRole = 'student' }: { initialRole?: Role }) 
   const router = useRouter();
   const [role, setRole] = useState<Role>(initialRole);
   const [f, setF] = useState({ email: '', password: '', displayName: '' });
+  const [confirm, setConfirm] = useState('');
+  const mismatch = confirm.length > 0 && confirm !== f.password;
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (f.password !== confirm) { setErr('The two passwords don’t match.'); return; }
     setBusy(true);
     setErr(null);
     try {
@@ -123,11 +145,16 @@ export function SignupForm({ initialRole = 'student' }: { initialRole?: Role }) 
       </div>
       <div>
         <label className="label" htmlFor="pw">Password (10+ characters)</label>
-        <input id="pw" className="input" type="password" autoComplete="new-password" minLength={10} value={f.password}
-          onChange={(e) => setF({ ...f, password: e.target.value })} required />
+        <PasswordInput id="pw" autoComplete="new-password" minLength={10} value={f.password}
+          onChange={(v) => setF({ ...f, password: v })} />
+      </div>
+      <div>
+        <label className="label" htmlFor="pw2">Confirm password</label>
+        <PasswordInput id="pw2" autoComplete="new-password" value={confirm} onChange={setConfirm} invalid={mismatch} />
+        {mismatch && <p className="mt-1 text-xs text-red-600">The passwords don’t match yet.</p>}
       </div>
       {err && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">{err}</p>}
-      <button className="btn-primary w-full" disabled={busy}>{busy && <Spinner />}Create {role} account</button>
+      <button className="btn-primary w-full" disabled={busy || mismatch}>{busy && <Spinner />}Create {role} account</button>
       <p className="text-center text-sm text-ink-mute">
         Have an account? <Link className="font-semibold text-roo-600 hover:underline" href="/login">Sign in</Link>
       </p>
@@ -166,6 +193,40 @@ export function VerifyForm({ email, demo }: { email: string; demo?: string }) {
         onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} aria-label="Verification code" required />
       {err && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">{err}</p>}
       <button className="btn-primary w-full" disabled={busy || code.length !== 6}>{busy && <Spinner />}Verify</button>
+    </form>
+  );
+}
+
+/**
+ * Forgot password. Step 1 asks for the email. Sending the one-time code by email is not switched on
+ * yet (planned: Gmail OTP), so for now the page says so instead of pretending a code was sent.
+ */
+export function ForgotForm({ initialEmail = '' }: { initialEmail?: string }) {
+  const [email, setEmail] = useState(initialEmail);
+  const [sent, setSent] = useState(false);
+
+  if (sent) {
+    return (
+      <div className="space-y-4">
+        <p className="rounded-lg bg-gold-50 px-3 py-2 text-sm text-gold-700">
+          Password reset by email is coming soon. Once it is on, we will send a 6-digit code to <strong>{email}</strong> so you
+          can choose a new password.
+        </p>
+        <Link className="btn-outline w-full" href="/login">Back to sign in</Link>
+      </div>
+    );
+  }
+  return (
+    <form onSubmit={(e) => { e.preventDefault(); setSent(true); }} className="space-y-4">
+      <div>
+        <label className="label" htmlFor="email">University email</label>
+        <input id="email" className="input" type="email" autoComplete="email" value={email} placeholder="you@umkc.edu"
+          onChange={(e) => setEmail(e.target.value)} required />
+      </div>
+      <button className="btn-primary w-full">Send reset code</button>
+      <p className="text-center text-sm text-ink-mute">
+        Remembered it? <Link className="font-semibold text-roo-600 hover:underline" href="/login">Sign in</Link>
+      </p>
     </form>
   );
 }

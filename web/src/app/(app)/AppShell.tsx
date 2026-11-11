@@ -6,8 +6,9 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
 import {
-  BookOpen, CalendarDays, ChevronDown, LayoutDashboard, LogOut, Menu, MessagesSquare, Settings, X,
+  Bell, BookOpen, CalendarDays, ChevronDown, LayoutDashboard, LogOut, Menu, MessagesSquare, Settings, X,
 } from 'lucide-react';
+import { NotificationBell } from '@/components/Notifications';
 import { api } from '@/components/client';
 import { Breadcrumbs, CourseSwatch, Logo, type Crumb } from '@/components/ui';
 
@@ -19,7 +20,7 @@ const COURSE_SECTIONS: Record<string, string> = {
   materials: 'Materials & Syllabus', dashboard: 'Clarifications', inbox: 'Anonymous Feedback', settings: 'Course Settings',
 };
 const TOP: Record<string, string> = {
-  dashboard: 'Dashboard', courses: 'Courses', calendar: 'Calendar', messages: 'Messages', settings: 'Settings',
+  dashboard: 'Dashboard', courses: 'Courses', calendar: 'Calendar', messages: 'Messages', notifications: 'Notifications', settings: 'Settings',
 };
 
 function crumbsFor(path: string, courses: ShellCourse[]): Crumb[] {
@@ -45,6 +46,7 @@ export function AppShell({ user, courses, children }: { user: ShellUser; courses
       { href: '/calendar', label: 'Calendar', icon: CalendarDays },
       { href: '/messages', label: 'Messages', icon: MessagesSquare },
     ] : []),
+    { href: '/notifications', label: 'Notifications', icon: Bell },
     { href: '/settings', label: 'Settings', icon: Settings },
   ];
   const activeCourse = path.startsWith('/c/') ? path.split('/')[2] : null;
@@ -117,6 +119,7 @@ export function AppShell({ user, courses, children }: { user: ShellUser; courses
             <Menu className="h-5 w-5" />
           </button>
           <Breadcrumbs items={crumbsFor(path, courses)} className="min-w-0 flex-1" />
+          <NotificationBell />
           <UserMenu user={user} />
         </header>
         <main id="main" className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">{children}</main>

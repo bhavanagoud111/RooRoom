@@ -25,6 +25,16 @@ PREV="$(readlink -f "$BASE/current" 2>/dev/null || true)"
 echo "▸ Building $SHA (old stack keeps running)"
 (cd "$NEW" && docker compose build --pull)
 
+# Database updates: every db/init file from 070 on is written to be safe to re-run, so apply them
+# all to the live database before the new code starts. (A brand-new database gets them at creation.)
+if docker ps --format '{{.Names}}' | grep -qx rooroom-db-1; then
+  for f in "$NEW"/db/init/0[7-9]*.sql "$NEW"/db/init/[1-9]*.sql; do
+    [ -f "$f" ] || continue
+    echo "▸ Database update: $(basename "$f")"
+    docker exec -i rooroom-db-1 psql -v ON_ERROR_STOP=1 -q -U rooroom_owner -d rooroom < "$f"
+  done
+fi
+
 echo "▸ Switching over"
 (cd "$NEW" && docker compose up -d --remove-orphans)
 ln -sfn "$NEW" "$BASE/current"

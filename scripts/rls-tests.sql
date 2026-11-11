@@ -118,6 +118,19 @@ BEGIN
   IF n <> 0 THEN RAISE EXCEPTION 'FAIL student sees others'' messages'; END IF;
   RAISE NOTICE 'ok    calendars and chats are private';
 
+  -- 12b. Notifications: a user sees only their own, and cannot create one.
+  SELECT count(*) INTO n FROM notifications WHERE user_id <> priya;
+  IF n <> 0 THEN RAISE EXCEPTION 'FAIL student sees others'' notifications'; END IF;
+  BEGIN
+    INSERT INTO notifications (user_id, kind, title, link) VALUES (diego, 'x', 'spoof', '/');
+    RAISE EXCEPTION 'FAIL app can write notifications';
+  EXCEPTION WHEN insufficient_privilege THEN NULL; END;
+  BEGIN
+    PERFORM notify_user(diego, NULL, 'x', NULL, 'spoof', NULL, '/');
+    RAISE EXCEPTION 'FAIL app can call notify_user';
+  EXCEPTION WHEN insufficient_privilege THEN NULL; END;
+  RAISE NOTICE 'ok    notifications are private and only the database writes them';
+
   -- 13. Users, sessions and the translation cache are unreadable directly.
   BEGIN
     PERFORM 1 FROM users LIMIT 1;
