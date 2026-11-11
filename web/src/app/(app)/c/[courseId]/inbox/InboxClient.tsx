@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { BellOff, Flag, Inbox, PlayCircle, Power, Reply, Send } from 'lucide-react';
+import { BellOff, Flag, Inbox, Power, Reply, RotateCw, Send } from 'lucide-react';
 import { api, Spinner } from '@/components/client';
 import { Badge, Empty } from '@/components/ui';
 import { When } from '../ask/When';
@@ -21,14 +21,16 @@ export function InboxClient({ courseId, notes, notesEnabled, mutedUntil, demo }:
     setBusy(null);
     router.refresh();
   }
-  async function runBatch() {
-    setBusy('batch');
-    try {
-      const r = await api<{ delivered: number }>(`/api/courses/${courseId}/notes/deliver`, { body: {} });
-      setMsg(`${r.delivered} queued note${r.delivered === 1 ? '' : 's'} delivered.`);
-    } catch (e) { setMsg((e as Error).message); }
-    setBusy(null);
-    router.refresh();
+  // Reload: in demo mode, first deliver any queued notes (instead of waiting for 8:00),
+  // then reload the whole page so new notes always show.
+  async function reload() {
+    setBusy('reload');
+    if (demo) {
+      try {
+        await api(`/api/courses/${courseId}/notes/deliver`, { body: {} });
+      } catch (e) { setMsg((e as Error).message); setBusy(null); return; }
+    }
+    window.location.reload();
   }
 
   return (
@@ -36,11 +38,10 @@ export function InboxClient({ courseId, notes, notesEnabled, mutedUntil, demo }:
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <h2 className="text-base font-semibold text-ink">Inbox <span className="font-normal text-ink-mute">· {notes.length} delivered</span></h2>
         <div className="flex flex-wrap gap-2">
-          {demo && (
-            <button className="btn-outline" onClick={runBatch} disabled={!!busy} title="Demo only: deliver queued notes now instead of at 8:00">
-              {busy === 'batch' ? <Spinner /> : <PlayCircle className="h-4 w-4" />}Run today’s batch (demo)
-            </button>
-          )}
+          <button className="btn-outline" onClick={reload} disabled={!!busy}
+            title={demo ? 'Deliver waiting notes now and reload the inbox' : 'Reload the inbox'}>
+            {busy === 'reload' ? <Spinner /> : <RotateCw className="h-4 w-4" />}Reload
+          </button>
           <button className="btn-outline" onClick={() => settings({ muteWeek: !mutedUntil }, 'mute')} disabled={!!busy}>
             {busy === 'mute' ? <Spinner /> : <BellOff className="h-4 w-4" />}{mutedUntil ? 'Unmute' : 'Mute for a week'}
           </button>
