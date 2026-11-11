@@ -50,6 +50,29 @@ export default async function Dashboard({ params }: { params: Promise<{ courseId
   return (
     <div className="space-y-6">
       <PageHeader title="Clarifications" description={TAGS.clarifications} />
+      <section aria-labelledby="all-q" className="card overflow-hidden">
+        <div className="card-header flex-wrap gap-3">
+          <div>
+            <h2 id="all-q" className="card-title">All anonymous questions <span className="font-normal text-ink-mute">· {questions.length}</span></h2>
+            <p className="mt-0.5 text-xs text-ink-mute">Every question students asked, with names removed. You never see who asked.</p>
+          </div>
+        </div>
+        <div className="border-b border-line p-5"><SummarizeButton courseId={c.id} kind="questions" count={questions.length} /></div>
+        {questions.length === 0 ? <p className="px-5 py-6 text-sm text-ink-mute">No questions yet.</p> : (
+          <ul className="max-h-[360px] divide-y divide-line overflow-y-auto">
+            {questions.map((q) => (
+              <li key={q.id} className="flex flex-wrap items-start justify-between gap-2 px-5 py-3">
+                <p className="min-w-0 flex-1 text-sm text-ink" dir="auto">{q.text}</p>
+                <span className="flex shrink-0 items-center gap-1.5 text-xs text-ink-mute">
+                  {q.module && <Badge tone="gray">{q.module}</Badge>}
+                  {q.status === 'answered' && <Badge tone="green">answered</Badge>}
+                  <When iso={q.created_at} mode="relative" />
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
       <div className="grid gap-3 sm:grid-cols-3">
         <Metric icon={<Layers />} label="Digests awaiting an answer" value={open.length} tone={open.length ? 'gold' : 'gray'} />
         <Metric icon={<Users />} label="Students helped by your answers" value={helped} tone="green" />
@@ -77,29 +100,6 @@ export default async function Dashboard({ params }: { params: Promise<{ courseId
         </aside>
       </div>
 
-      <section aria-labelledby="all-q" className="card overflow-hidden">
-        <div className="card-header flex-wrap gap-3">
-          <div>
-            <h2 id="all-q" className="card-title">All anonymous questions <span className="font-normal text-ink-mute">· {questions.length}</span></h2>
-            <p className="mt-0.5 text-xs text-ink-mute">Every question students asked, with names removed. You never see who asked.</p>
-          </div>
-        </div>
-        <div className="border-b border-line p-5"><SummarizeButton courseId={c.id} kind="questions" count={questions.length} /></div>
-        {questions.length === 0 ? <p className="px-5 py-6 text-sm text-ink-mute">No questions yet.</p> : (
-          <ul className="max-h-[480px] divide-y divide-line overflow-y-auto">
-            {questions.map((q) => (
-              <li key={q.id} className="flex flex-wrap items-start justify-between gap-2 px-5 py-3">
-                <p className="min-w-0 flex-1 text-sm text-ink" dir="auto">{q.text}</p>
-                <span className="flex shrink-0 items-center gap-1.5 text-xs text-ink-mute">
-                  {q.module && <Badge tone="gray">{q.module}</Badge>}
-                  {q.status === 'answered' && <Badge tone="green">answered</Badge>}
-                  <When iso={q.created_at} mode="relative" />
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
 
       {data.answers.length > 0 && (
         <section>

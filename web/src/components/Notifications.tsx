@@ -5,17 +5,26 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
-import { Bell, BellRing, CheckCheck, HelpCircle, Megaphone, MessageCircle, FileText, MessageSquareReply, Users, X } from 'lucide-react';
+import {
+  AlertTriangle, Bell, BellRing, CalendarDays, CheckCheck, FileText, Flag, HelpCircle, Megaphone, MessageCircle,
+  MessageSquareReply, Send, Settings, Sparkles, UserPlus, Users, X,
+} from 'lucide-react';
 import { api } from '@/components/client';
 
 export type Notif = {
   id: string; kind: string; title: string; body: string | null; link: string; created_at: string; read_at: string | null;
+  outgoing: boolean;
 };
 type Feed = { unread: number; items: Notif[] };
 
 const ICONS: Record<string, typeof Bell> = {
   note: MessageCircle, note_reply: MessageSquareReply, digest: Users, question: HelpCircle, answer: MessageSquareReply,
   announcement: Megaphone, material: FileText, message: MessageCircle,
+  welcome: Sparkles, joined: UserPlus, student_joined: UserPlus, upload_ready: FileText, upload_failed: AlertTriangle,
+  question_sent: Send, digest_formed: Users, note_queued: Send, note_held: AlertTriangle, note_blocked: AlertTriangle,
+  note_delivered: MessageCircle, published: Megaphone, reply_sent: Send, course_settings: Settings,
+  suspended: AlertTriangle, chat_started: MessageCircle, calendar_suggested: CalendarDays, calendar_added: CalendarDays,
+  report_received: Flag,
 };
 
 function ago(iso: string) {
@@ -42,7 +51,8 @@ export function NotificationBell() {
     try {
       const f = await api<Feed>('/api/notifications');
       setUnread(f.unread);
-      const fresh = f.items.filter((n) => !n.read_at);
+      // Confirmations of your own actions are listed as unread but don't pop up: you just did the thing.
+      const fresh = f.items.filter((n) => !n.read_at && !n.outgoing);
       // Key on id + time, so a combined notification ("3 new questions") pops up again when it grows.
       const key = (n: Notif) => `${n.id}@${n.created_at}`;
       if (seen.current) {
@@ -131,7 +141,7 @@ export function NotificationList({ initial }: { initial: Feed }) {
           <span className="min-w-0 flex-1">
             <span className={clsx('block text-sm', isNew ? 'font-semibold text-ink' : 'text-ink-soft')}>{n.title}</span>
             {n.body && <span className="mt-0.5 block line-clamp-2 text-sm text-ink-mute">{n.body}</span>}
-            <span className="mt-1 block text-xs text-ink-mute">{ago(n.created_at)}</span>
+            <span className="mt-1 block text-xs text-ink-mute">{n.outgoing ? 'You · ' : ''}{ago(n.created_at)}</span>
           </span>
           {isNew && <span className="mt-1 rounded-full bg-red-600 px-2 py-0.5 text-[11px] font-semibold text-white">Unread</span>}
         </button>

@@ -16,8 +16,8 @@ export default async function NotificationsPage() {
     <div className="mx-auto max-w-3xl">
       <PageHeader title="Notifications"
         description={me.role === 'professor'
-          ? 'Anonymous questions, feedback and question groups from your students.'
-          : 'Answers, announcements, new materials, replies to your notes and messages.'} />
+          ? 'Everything that happens in your courses: questions, feedback, new students, and confirmations of what you send.'
+          : 'Everything that happens in your courses: answers, announcements, materials, replies, messages, and confirmations of what you send.'} />
       <NotificationList initial={{ unread: feed.unread, items }} />
     </div>
   );
