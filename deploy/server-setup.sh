@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # One-time setup of a fresh Ubuntu 24.04 VPS for RooRoom. Run ON the server:
-#   sudo bash server-setup.sh <expected-hostname> <domain>
-# Same lockdown as the 2buildai dev box: firewall (22/80/443 only), Docker, Caddy for HTTPS,
-# fail2ban, automatic security updates, swap, key-only SSH.
+#   sudo bash server-setup.sh <expected-hostname> [domain]
+# Firewall (22/80/443 only), Docker, Caddy for HTTPS, fail2ban, automatic security updates, swap,
+# no root login. Password login stays ON (owner's choice, 2026-11-11); fail2ban blocks guessing.
+# Without a domain, Caddy is installed but not configured; rerun with the domain later.
 set -euo pipefail
 [ "$(id -u)" -eq 0 ] || { echo "Run with sudo." >&2; exit 1; }
-EXPECTED="${1:?usage: server-setup.sh <expected-hostname> <domain>}"
-DOMAIN="${2:?usage: server-setup.sh <expected-hostname> <domain>}"
+EXPECTED="${1:?usage: server-setup.sh <expected-hostname> [domain]}"
+DOMAIN="${2:-}"
 [ "$(hostname)" = "$EXPECTED" ] || { echo "REFUSING: this is '$(hostname)', not $EXPECTED." >&2; exit 1; }
 DEPLOY_USER="${SUDO_USER:-ubuntu}"
 
@@ -32,24 +33,23 @@ if ! swapon --show | grep -q /swapfile; then
 fi
 
 # Caddy gets the HTTPS certificate and forwards to the stack's gateway on 127.0.0.1:3300.
-cat >/etc/caddy/Caddyfile <<EOF
+systemctl enable caddy
+if [ -n "$DOMAIN" ]; then
+  cat >/etc/caddy/Caddyfile <<EOF
 ${DOMAIN} {
 	encode gzip
 	reverse_proxy 127.0.0.1:3300
 }
 EOF
-systemctl enable caddy
-systemctl reload caddy || systemctl restart caddy
+  systemctl reload caddy || systemctl restart caddy
+fi
 
 # Folders the deploy uses.
 install -d -o "$DEPLOY_USER" -g "$DEPLOY_USER" "/home/$DEPLOY_USER/rooroom" \
   "/home/$DEPLOY_USER/rooroom/releases" "/home/$DEPLOY_USER/rooroom/shared"
 
-# Key-only SSH. 00- sorts before cloud-init's 50- file, so these values win.
-[ -s "/home/$DEPLOY_USER/.ssh/authorized_keys" ] || { echo "REFUSING: $DEPLOY_USER has no SSH key; would lock you out." >&2; exit 1; }
+# No root login over SSH. Password login is left as the owner chose.
 cat >/etc/ssh/sshd_config.d/00-rooroom-hardening.conf <<'EOF'
-PasswordAuthentication no
-KbdInteractiveAuthentication no
 PermitRootLogin no
 EOF
 mkdir -p /run/sshd

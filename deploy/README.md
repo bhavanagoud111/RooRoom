@@ -5,7 +5,7 @@ the code to the server over SSH. The server builds the new version while the old
 running, switches over, and checks that the site answers. If it doesn't, the server goes back
 to the previous version. The database and uploaded files are kept between deploys.
 
-## One-time setup for a new VPS (Ubuntu 24.04)
+## One-time setup for a new VPS (Ubuntu 24.04 or 26.04)
 
 Placeholders: `IP` = server address, `HOST` = its hostname (`ssh ubuntu@IP hostname`),
 `DOMAIN` = the site's address.
