@@ -1,0 +1,63 @@
+name: Deploy to VPS
+
+# Every push to main deploys RooRoom to the VPS (also: "Run workflow" in the Actions tab).
+# The code is copied from this checkout over SSH, so the server never holds a GitHub credential.
+# The server-side steps are in deploy/remote-deploy.sh (build first, switch, health check, roll back).
+#
+# Does nothing until the VPS is set up. Settings > Secrets and variables > Actions:
+#   Secrets
+#     DEPLOY_SSH_KEY  private key made only for this workflow (deploy/README.md, step 3)
+#     VPS_HOST        server IP address
+#     VPS_HOST_KEY    the server's known_hosts line (ssh-keyscan -t ed25519 <ip>), so a
+#                     different machine at that address is refused
+#   Variables
+#     DOMAIN          e.g. rooroom.example.com; the job is skipped while this is empty
+#     VPS_HOSTNAME    the server's hostname; remote-deploy.sh refuses to run anywhere else
+#     VPS_USER        optional, default ubuntu
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-vps
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    if: ${{ vars.DOMAIN != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SSH_TARGET: ${{ vars.VPS_USER || 'ubuntu' }}@${{ secrets.VPS_HOST }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: SSH key and pinned host key
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          printf '%s\n' "${{ secrets.VPS_HOST_KEY }}" > ~/.ssh/known_hosts
+          printf 'Host *\n  IdentityFile ~/.ssh/id_deploy\n  StrictHostKeyChecking yes\n  IdentitiesOnly yes\n' > ~/.ssh/config
+
+      - name: Ship code
+        run: |
+          git archive --format=tar.gz HEAD > /tmp/release.tar.gz
+          ssh "$SSH_TARGET" "mkdir -p ~/rooroom/incoming && cat > ~/rooroom/incoming/${GITHUB_SHA}.tar.gz" < /tmp/release.tar.gz
+
+      - name: Build, switch over, health check
+        run: ssh "$SSH_TARGET" "bash -s -- ${GITHUB_SHA} ${{ vars.VPS_HOSTNAME }}" < deploy/remote-deploy.sh
+
+      - name: Public HTTPS check
+        run: |
+          for i in $(seq 1 20); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "https://${{ vars.DOMAIN }}/" || true)
+            case "$code" in 2??|3??) echo "https://${{ vars.DOMAIN }} answered $code"; exit 0 ;; esac
+            sleep 6
+          done
+          echo "https://${{ vars.DOMAIN }} did not answer (last: $code)"; exit 1
