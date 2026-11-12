@@ -123,6 +123,9 @@ def main():
     subprocess.run(["docker", "cp", tmp, "rooroom-db-1:/tmp/umkc_import.json"], check=True)
     subprocess.run(["docker", "exec", "-i", "rooroom-db-1", "psql", "-q", "-U", "rooroom_owner", "-d", "rooroom"],
                    input=SQL.encode(), check=True)
+    # One colour per course (db/init/075); new courses need theirs.
+    subprocess.run(["docker", "exec", "rooroom-db-1", "psql", "-q", "-U", "rooroom_owner", "-d", "rooroom",
+                    "-c", "SELECT to_regproc('recolor_courses') IS NULL OR recolor_courses() >= 0"], check=True)
 
 
 if __name__ == "__main__":

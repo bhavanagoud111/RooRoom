@@ -29,18 +29,18 @@ export default async function DashboardPage() {
 async function StudentDashboard({ me, courses }: { me: Me; courses: Course[] }) {
   const data = await withUser(me.id, async (db) => {
     const events = await db.query(
-      `SELECT ev.id, ev.title, ev.starts_at, ev.kind, ev.status, c.code, c.color, c.id AS course_id
+      `SELECT ev.id, ev.title, ev.starts_at, ev.kind, ev.status, c.code, my_course_color(c.id, c.color) AS color, c.id AS course_id
          FROM events ev LEFT JOIN courses c ON c.id = ev.course_id
         WHERE ev.user_id = app_uid() AND ev.starts_at > now() - interval '1 hour' AND ev.starts_at < now() + interval '14 days'
           AND ev.kind IN ('deadline','exam','study')
         ORDER BY ev.starts_at LIMIT 8`);
     const activity = await db.query(
       `SELECT * FROM (
-         SELECT 'clarification' AS type, k.id, k.question_summary AS title, k.published_at AS at, c.id AS course_id, c.code, c.color
+         SELECT 'clarification' AS type, k.id, k.question_summary AS title, k.published_at AS at, c.id AS course_id, c.code, my_course_color(c.id, c.color) AS color
            FROM clarifications k JOIN courses c ON c.id = k.course_id
            JOIN enrollments e ON e.course_id = c.id AND e.user_id = app_uid()
          UNION ALL
-         SELECT 'material', d.id, d.title, d.created_at, c.id, c.code, c.color
+         SELECT 'material', d.id, d.title, d.created_at, c.id, c.code, my_course_color(c.id, c.color) AS color
            FROM documents d JOIN courses c ON c.id = d.course_id
            JOIN enrollments e ON e.course_id = c.id AND e.user_id = app_uid()
           WHERE d.visibility = 'class'
@@ -215,12 +215,12 @@ async function ProfessorDashboard({ me, courses }: { me: Me; courses: Course[] }
               (SELECT count(*) FROM documents d WHERE d.course_id = c.id AND d.visibility = 'class')::int AS materials
          FROM courses c JOIN enrollments e ON e.course_id = c.id AND e.user_id = app_uid() AND e.role_in_course = 'professor'`);
     const digests = await db.query(
-      `SELECT cl.id, cl.summary, cl.module, cl.question_count, cl.updated_at, c.id AS course_id, c.code, c.color
+      `SELECT cl.id, cl.summary, cl.module, cl.question_count, cl.updated_at, c.id AS course_id, c.code, my_course_color(c.id, c.color) AS color
          FROM clusters cl JOIN courses c ON c.id = cl.course_id
         WHERE cl.status = 'digest' AND is_prof(c.id)
         ORDER BY cl.question_count DESC, cl.updated_at DESC LIMIT 6`);
     const published = await db.query(
-      `SELECT k.id, k.question_summary, k.published_at, c.id AS course_id, c.code, c.color
+      `SELECT k.id, k.question_summary, k.published_at, c.id AS course_id, c.code, my_course_color(c.id, c.color) AS color
          FROM clarifications k JOIN courses c ON c.id = k.course_id
         WHERE is_prof(c.id) ORDER BY k.published_at DESC LIMIT 5`);
     return {

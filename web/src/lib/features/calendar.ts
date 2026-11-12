@@ -19,7 +19,7 @@ export type EventRow = {
 
 const SELECT = `
   SELECT e.id, e.title, e.starts_at, e.ends_at, e.kind, e.source, e.status, e.weight, e.course_id,
-         c.code AS course_code, c.title AS course_title, c.color
+         c.code AS course_code, c.title AS course_title, my_course_color(c.id, c.color) AS color
     FROM events e LEFT JOIN courses c ON c.id = e.course_id`;
 
 export async function listEvents(db: Db, from: Date, to: Date): Promise<EventRow[]> {

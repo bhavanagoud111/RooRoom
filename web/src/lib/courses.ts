@@ -31,7 +31,7 @@ export type Course = {
 // professor_name is the account's display name, or the instructor's name from the public UMKC
 // schedule when that professor has not joined RooRoom yet.
 const COURSE_SQL = `
-  SELECT c.*, coalesce(p.display_name, i.name) AS professor_name, (c.professor_id IS NOT NULL) AS professor_on_rooroom,
+  SELECT c.*, my_course_color(c.id, c.color) AS color, coalesce(p.display_name, i.name) AS professor_name, (c.professor_id IS NOT NULL) AS professor_on_rooroom,
          e.role_in_course AS my_role, is_prof(c.id) AS is_prof, class_size(c.id) AS class_size
     FROM courses c
     LEFT JOIN profiles p ON p.id = c.professor_id

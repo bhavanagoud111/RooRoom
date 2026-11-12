@@ -14,7 +14,7 @@ export const GET = route(async (req, { me }) => {
   return withUser(me.id, async (db) => {
     const events = await listEvents(db, from, to);
     const courses = (await db.query(
-      `SELECT c.id, c.code, c.title, c.color FROM courses c
+      `SELECT c.id, c.code, c.title, my_course_color(c.id, c.color) AS color FROM courses c
          JOIN enrollments e ON e.course_id = c.id AND e.user_id = app_uid() ORDER BY c.code`)).rows;
     return { events, courses, timezone: me.timezone };
   }, { readOnly: true });
