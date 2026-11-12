@@ -1,10 +1,10 @@
 import { notFound } from 'next/navigation';
-import { CheckCircle2, Layers, Megaphone, Users } from 'lucide-react';
+import { CheckCircle2, Layers, Megaphone } from 'lucide-react';
 import { requireMe } from '@/lib/auth';
 import { courseForPage } from '@/lib/courses';
 import { withUser } from '@/lib/db';
 import { Empty, Metric, PageHeader } from '@/components/ui';
-import { Announce, ConfusionMap, DigestCard, type Digest } from './DashboardClient';
+import { Announce, DigestCard, type Digest } from './DashboardClient';
 import { SummarizeButton } from './Summarize';
 import { allQuestions } from '@/lib/features/summarize';
 import { Badge } from '@/components/ui';
@@ -34,18 +34,6 @@ export default async function Dashboard({ params }: { params: Promise<{ courseId
   const open: Digest[] = data.clusters.filter((x) => x.status !== 'answered').map((x) => ({
     id: x.id, summary: x.summary, module: x.module, count: x.question_count, updated_at: new Date(x.updated_at).toISOString(),
   }));
-  const answered = data.clusters.filter((x) => x.status === 'answered');
-  const helped = answered.reduce((s, x) => s + x.question_count, 0);
-
-  const byTopic = new Map<string, { open: number; answered: number; clusters: number }>();
-  for (const x of data.clusters) {
-    const k = x.module || 'General';
-    const v = byTopic.get(k) ?? { open: 0, answered: 0, clusters: 0 };
-    if (x.status === 'answered') v.answered += x.question_count; else v.open += x.question_count;
-    v.clusters += 1;
-    byTopic.set(k, v);
-  }
-  const map = [...byTopic.entries()].map(([topic, v]) => ({ topic, ...v })).sort((a, b) => b.open + b.answered - (a.open + a.answered));
 
   return (
     <div className="space-y-6">
@@ -73,9 +61,8 @@ export default async function Dashboard({ params }: { params: Promise<{ courseId
           </ul>
         )}
       </section>
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2">
         <Metric icon={<Layers />} label="Digests awaiting an answer" value={open.length} tone={open.length ? 'gold' : 'gray'} />
-        <Metric icon={<Users />} label="Students helped by your answers" value={helped} tone="green" />
         <Metric icon={<Megaphone />} label="Clarifications published" value={data.answers.length} tone="blue" />
       </div>
 
@@ -88,14 +75,13 @@ export default async function Dashboard({ params }: { params: Promise<{ courseId
           </p>
           {open.length === 0 ? (
             <Empty icon={<CheckCircle2 />} title="Nothing waiting">
-              No group of questions has reached {c.cluster_threshold} students yet. Every question is listed below.
+              No group of questions has reached {c.cluster_threshold} students yet. Every question is listed above.
             </Empty>
           ) : (
             <div className="space-y-4">{open.map((d) => <DigestCard key={d.id} d={d} courseId={c.id} />)}</div>
           )}
         </section>
-        <aside className="grid content-start gap-4 lg:grid-cols-2 2xl:grid-cols-1">
-          <ConfusionMap rows={map} />
+        <aside className="grid content-start gap-4">
           <Announce courseId={c.id} />
         </aside>
       </div>

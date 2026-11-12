@@ -173,6 +173,15 @@ def extract_syllabus_events(conn, doc, full_text: str) -> int:
         events.append((title, start, end, kind, row.get("weight")))
 
     with conn.cursor() as cur:
+        # Keep the dates once per course too (db/init/074), so students who join later and the
+        # calendar assistant can use them even if nobody was enrolled when the syllabus was read.
+        cur.execute("DELETE FROM course_dates WHERE document_id = %s", (doc["id"],))
+        for title, start, end, kind, weight in events:
+            cur.execute(
+                """INSERT INTO course_dates (course_id, document_id, title, starts_at, ends_at, kind, weight)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s)""",
+                (course_id, doc["id"], title, start, end, kind, weight),
+            )
         cur.execute(
             "SELECT user_id FROM enrollments WHERE course_id = %s AND role_in_course = 'student'",
             (course_id,),

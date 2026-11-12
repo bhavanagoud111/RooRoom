@@ -123,7 +123,8 @@ export async function resolveSuggested(db: Db, me: Me, action: 'confirm' | 'dism
 }
 
 // ------------------------------------------------------------------ voice agent
-// The transcript goes to a model with exactly four tools. Deletes and overlapping bookings are
+// The transcript goes to a model with five tools (four that touch the calendar, one that reads the
+// course's important dates). Deletes and overlapping bookings are
 // never executed by the model: they come back as pending actions the student confirms.
 
 export type PendingAction =
@@ -184,6 +185,14 @@ const TOOLS: ToolDef[] = [
   {
     type: 'function',
     function: {
+      name: 'list_course_dates',
+      description: 'The important dates (deadlines, quizzes, exams) read from each of the student’s course syllabi, whether each course has a syllabus yet, and the professor’s latest announcements. Call this for any request about syllabus dates, deadlines or exams, e.g. "block study time before my deadlines".',
+      parameters: { type: 'object', properties: {} },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'list_events',
       description: 'List the student’s events between two local dates (inclusive), YYYY-MM-DD.',
       parameters: {
@@ -226,8 +235,13 @@ export async function runCalendarAgent(db: Db, me: Me, transcript: string, histo
     'One spoken request can contain several actions: call a tool once for each. "Block 9 to 10 for the networks project and add a deadline for HW3 on Friday" is two create_event calls.',
     'To change or delete something, call list_events first to find it. Never guess an event id.',
     'If a tool result says the action is waiting for the student’s confirmation, do not retry it; just mention it.',
+    'For anything about syllabus dates, deadlines, quizzes or exams ("block time before my deadlines", "prepare for the important dates"), call list_course_dates first, then list_events for that period so you avoid clashes and do not add a block that already exists.',
+    'A professor update that changes a date (for example an extension) wins over the syllabus date. Plan around the new date and mention the change, but do not edit existing events unless the student asks.',
+    'If a course the student means has has_syllabus = false, say plainly that the professor has not uploaded a syllabus for that course yet, so there are no dates to plan around, and offer to add blocks if the student tells you the dates. Never reply with nothing.',
+    'If no time is given for a study block before a deadline, use 6 to 8 pm the evening before; for an exam, also add a block two evenings before.',
+    'When several events are needed, call create_event for all of them together in one turn, not one per turn.',
     `The student’s courses: ${courses.map((c) => `${c.code} (${c.title})`).join('; ') || 'none'}. Match casual names like "networks" or "stats" to these codes.`,
-    'When you are done, reply in one or two short, friendly sentences saying what you did, in the language the student spoke.',
+    'When you are done, reply in one or two short, friendly sentences saying what you did, in the language the student spoke. A short list is fine when you added several blocks. Put the message for the student inside <reply></reply> tags; anything outside the tags is never shown.',
     DATA_RULE,
   ].join('\n');
 
@@ -248,6 +262,21 @@ export async function runCalendarAgent(db: Db, me: Me, transcript: string, histo
 
   async function exec(name: string, args: Record<string, string>): Promise<string> {
     try {
+      if (name === 'list_course_dates') {
+        const rows = (await db.query('SELECT * FROM my_course_dates()')).rows as {
+          course_code: string; has_syllabus: boolean;
+          dates: { title: string; starts_at: string; ends_at: string; kind: string; weight: string | null }[];
+          professor_updates: { topic: string | null; text: string; published_at: string }[];
+        }[];
+        return JSON.stringify(rows.map((r) => ({
+          course: r.course_code,
+          has_syllabus: r.has_syllabus,
+          dates: r.dates.filter((d) => new Date(d.ends_at) > now).map((d) => ({
+            title: d.title, start: fmtLocal(d.starts_at, tz), end: fmtLocal(d.ends_at, tz), kind: d.kind, weight: d.weight,
+          })),
+          professor_updates: r.professor_updates.map((u) => ({ topic: u.topic, text: u.text, published: fmtLocal(u.published_at, tz) })),
+        })));
+      }
       if (name === 'list_events') {
         const from = localToUtc(args.from, tz);
         const to = new Date(localToUtc(args.to, tz).getTime() + 86400000);
@@ -308,21 +337,30 @@ export async function runCalendarAgent(db: Db, me: Me, transcript: string, histo
   }
 
   let reply = '';
+  const trace: string[] = [];
   for (let step = 0; step < 6; step++) {
-    const r = await llm({ task: 'calendar_agent', messages, tools: TOOLS, temperature: 0, maxTokens: 700 });
+    // Room for a dozen tool calls in one turn: at 700 tokens, batched create_event calls were cut off
+    // mid-JSON and arrived empty (2026-11-11).
+    const r = await llm({ task: 'calendar_agent', messages, tools: TOOLS, temperature: 0, maxTokens: 2500 });
     if (!r.toolCalls.length) {
-      reply = r.content.trim();
+      // Only the part inside <reply> reaches the student (the model sometimes thinks aloud first).
+      const m = r.content.match(/<reply>([\s\S]*?)(?:<\/reply>|$)/i);
+      reply = (m ? m[1] : r.content).replace(/<\/?reply>/gi, '').trim();
+      trace.push('reply');
       break;
     }
+    trace.push(r.toolCalls.map((c) => c.function.name).join('+'));
     messages.push({ role: 'assistant', content: r.content || null, tool_calls: r.toolCalls });
-    for (const call of r.toolCalls.slice(0, 8)) {
+    for (const call of r.toolCalls.slice(0, 16)) {
       let args: Record<string, string> = {};
       try { args = JSON.parse(call.function.arguments || '{}'); } catch { /* empty */ }
-      messages.push({ role: 'tool', tool_call_id: call.id, content: await exec(call.function.name, args) });
+      const result = await exec(call.function.name, args);
+      if (result.startsWith('error')) trace.push(`${call.function.name} ${result.slice(0, 160)} ${JSON.stringify(args).slice(0, 160)}`);
+      messages.push({ role: 'tool', tool_call_id: call.id, content: result });
     }
   }
   if (!reply) reply = done.length ? `Done: ${done.map((x) => x.event.title).join(', ')}.` : 'Sorry, I didn’t catch that. Could you say it again?';
-  await audit(db, me.id, 'calendar_agent', { done: done.length, pending: pending.length });
+  await audit(db, me.id, 'calendar_agent', { done: done.length, pending: pending.length, steps: trace });
   return { reply, done, pending };
 }
 

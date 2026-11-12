@@ -121,39 +121,5 @@ export function Announce({ courseId }: { courseId: string }) {
   );
 }
 
-type Row = { topic: string; open: number; answered: number; clusters: number };
 
 /** Cluster counts grouped by module or assignment: where the class is confused, at a glance. */
-export function ConfusionMap({ rows }: { rows: Row[] }) {
-  const max = Math.max(1, ...rows.map((r) => r.open + r.answered));
-  return (
-    <div className="card p-5">
-      <h3 className="card-title">Confusion map</h3>
-      <p className="mb-4 text-xs text-ink-mute">Students per topic, from groups that reached the threshold.</p>
-      {rows.length === 0 ? <p className="text-sm text-ink-mute">No data yet.</p> : (
-        <ul className="space-y-3">
-          {rows.map((r) => {
-            const heat = r.open / Math.max(1, r.open + r.answered);
-            return (
-              <li key={r.topic}>
-                <div className="mb-1 flex items-center justify-between text-sm">
-                  <span className="truncate font-medium text-ink">{r.topic}</span>
-                  <span className="text-xs text-ink-mute">{r.open > 0 ? `${r.open} open` : 'all answered'}{r.answered ? ` · ${r.answered} answered` : ''}</span>
-                </div>
-                <div className="flex h-2.5 overflow-hidden rounded-sm bg-slate-100" role="img"
-                  aria-label={`${r.topic}: ${r.open} students with open questions, ${r.answered} answered`}>
-                  <div style={{ width: `${(r.open / max) * 100}%`, background: heat > 0.5 ? '#D97706' : '#F59E0B' }} />
-                  <div className="bg-emerald-500" style={{ width: `${(r.answered / max) * 100}%` }} />
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-      <div className="mt-4 flex gap-4 text-[11px] text-ink-mute">
-        <span className="flex items-center gap-1"><span className="h-2 w-3 rounded-sm bg-gold-500" />open</span>
-        <span className="flex items-center gap-1"><span className="h-2 w-3 rounded-sm bg-emerald-500" />answered</span>
-      </div>
-    </div>
-  );
-}
