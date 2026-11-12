@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import clsx from 'clsx';
 import {
-  ArrowLeft, Ban, BookOpen, CalendarClock, Download, FileText, Flag, MessageCircle, Paperclip, Search, Send, ShieldCheck, Sparkles, Users, X,
+  ArrowLeft, Ban, BookOpen, CalendarClock, Download, FileText, Flag, LogOut, MessageCircle, Paperclip, Search, Send, ShieldCheck, Sparkles, UserPlus, Users, X,
 } from 'lucide-react';
 import { api, Spinner, Translatable, useConfirm } from '@/components/client';
 import { Badge, Empty, LoadingSkeleton, PageHeader, timeAgo } from '@/components/ui';
@@ -155,11 +155,11 @@ export function Buddies({ courseId, courseColor, me, initialThread }: {
   useEffect(() => { data?.threads.forEach((t) => join(t.id)); }, [data, join]);
   useEffect(() => { if (active) join(active); }, [active, join]);
 
-  async function openThread(memberIds: string[], title = '') {
+  async function openThread(memberIds: string[], title = '', group = false) {
     setBusy(memberIds.join(','));
     setErr(null);
     try {
-      const r = await api<{ id: string }>('/api/threads', { body: { courseId, memberIds, title } });
+      const r = await api<{ id: string }>('/api/threads', { body: { courseId, memberIds, title, group } });
       setActive(r.id);
       setPicking(false);
       setPicked([]);
@@ -206,9 +206,11 @@ export function Buddies({ courseId, courseColor, me, initialThread }: {
               <h2 className="card-title"><Users className="h-4 w-4 text-ink-mute" />Classmate directory</h2>
               <p className="text-xs text-ink-mute">{data.buddies.length} visible · {studyingNow} studying this week</p>
             </div>
-            {data.visible && data.buddies.length > 1 && (
-              <button className={picking ? 'btn-ghost btn-sm' : 'btn-outline btn-sm'} onClick={() => { setPicking(!picking); setPicked([]); }}>
-                {picking ? 'Cancel' : 'New group'}
+            {data.visible && (
+              <button className={picking ? 'btn-ghost btn-sm' : 'btn-primary btn-sm'} disabled={!picking && data.buddies.length === 0}
+                title={data.buddies.length === 0 ? 'No classmates in this course are visible yet' : undefined}
+                onClick={() => { setPicking(!picking); setPicked([]); }}>
+                {picking ? 'Cancel' : <><Users className="h-4 w-4" />New group chat</>}
               </button>
             )}
           </div>
@@ -228,11 +230,11 @@ export function Buddies({ courseId, courseColor, me, initialThread }: {
                   maxLength={60} onChange={(e) => setGroupTitle(e.target.value)} aria-label="Group name" />
                 <ComposeTools value={groupTitle} onChange={setGroupTitle} className="!bottom-0.5" />
               </div>
-              <button className="btn-primary w-full" disabled={picked.length < 2 || !!busy}
-                onClick={() => openThread(picked, groupTitle)}>
-                {busy ? <Spinner /> : <Users className="h-4 w-4" />}Start group with {picked.length} classmates
+              <button className="btn-primary w-full" disabled={picked.length < 1 || !!busy}
+                onClick={() => openThread(picked, groupTitle, true)}>
+                {busy ? <Spinner /> : <Users className="h-4 w-4" />}Create group with {picked.length} classmate{picked.length === 1 ? '' : 's'}
               </button>
-              <p className="text-xs text-roo-800">Pick 2 to 7 classmates below.</p>
+              <p className="text-xs text-roo-800">Pick 1 to 7 classmates from this course below. You can add more people later, and anyone can leave.</p>
             </div>
           )}
 
@@ -314,7 +316,7 @@ export function Buddies({ courseId, courseColor, me, initialThread }: {
       <section>
         {active ? (
           <ThreadView key={active} threadId={active} me={me} tick={tick} status={status} accent={courseColor}
-            onClose={() => setActive(null)} onChanged={load} />
+            classmates={data.buddies} onClose={() => setActive(null)} onChanged={load} />
         ) : (
           <div className="space-y-4">
             <Empty icon={<MessageCircle />} title="Select a classmate to start a conversation">
@@ -330,8 +332,8 @@ export function Buddies({ courseId, courseColor, me, initialThread }: {
 }
 
 // ------------------------------------------------------------------ thread
-function ThreadView({ threadId, me, tick, status, accent, onClose, onChanged }: {
-  threadId: string; me: Me; tick: number; status: string; accent: string;
+function ThreadView({ threadId, me, tick, status, accent, classmates, onClose, onChanged }: {
+  threadId: string; me: Me; tick: number; status: string; accent: string; classmates: Buddy[];
   onClose: () => void; onChanged: () => void;
 }) {
   const [thread, setThread] = useState<Thread | null>(null);
@@ -340,6 +342,9 @@ function ThreadView({ threadId, me, tick, status, accent, onClose, onChanged }: 
   const [err, setErr] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [file, setFile] = useState<File | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [toAdd, setToAdd] = useState<string[]>([]);
+  const [groupBusy, setGroupBusy] = useState(false);
   const [dragging, setDragging] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const [reporting, setReporting] = useState<{ messageId?: string; userId?: string } | null>(null);
@@ -417,6 +422,40 @@ function ThreadView({ threadId, me, tick, status, accent, onClose, onChanged }: 
     }
   }
 
+  async function addPeople() {
+    if (!toAdd.length) return;
+    setGroupBusy(true);
+    setErr(null);
+    try {
+      const r = await api<{ added: number }>(`/api/threads/${threadId}/members`, { body: { memberIds: toAdd } });
+      setNotice(`${r.added} classmate${r.added === 1 ? '' : 's'} added to the group.`);
+      setAdding(false);
+      setToAdd([]);
+      await loadAll();
+      onChanged();
+    } catch (x) {
+      setErr((x as Error).message);
+    } finally {
+      setGroupBusy(false);
+    }
+  }
+
+  async function leaveGroup() {
+    if (!(await confirm({
+      title: 'Leave this group?', confirmLabel: 'Leave group', danger: true,
+      body: 'You’ll stop getting its messages, and the others will see that you left. Someone in the group can add you back.',
+    }))) return;
+    setGroupBusy(true);
+    try {
+      await api(`/api/threads/${threadId}/leave`, { body: {} });
+      onChanged();
+      onClose();
+    } catch (x) {
+      setErr((x as Error).message);
+      setGroupBusy(false);
+    }
+  }
+
   async function toggleBlock(m: Member) {
     if (!m.blocked && !(await confirm({
       title: `Block ${m.display_name}?`, confirmLabel: 'Block', danger: true,
@@ -460,6 +499,18 @@ function ThreadView({ threadId, me, tick, status, accent, onClose, onChanged }: 
             <span className="ml-1 inline-flex items-center gap-1 text-emerald-700"><ShieldCheck className="h-3 w-3" />encrypted</span>
           </p>
         </div>
+        {thread.is_group && (
+          <>
+            <button className={clsx('btn-ghost h-8 px-2 text-xs', adding ? 'text-roo-700' : 'text-ink-soft')} onClick={() => { setAdding(!adding); setToAdd([]); }}
+              title="Add classmates to this group" aria-label="Add people" aria-expanded={adding}>
+              <UserPlus className="h-4 w-4" /><span className="hidden sm:inline">Add people</span>
+            </button>
+            <button className="btn-ghost h-8 px-2 text-xs text-ink-soft hover:text-red-700" onClick={leaveGroup} disabled={groupBusy}
+              title="Leave this group" aria-label="Leave group">
+              <LogOut className="h-4 w-4" /><span className="hidden sm:inline">Leave</span>
+            </button>
+          </>
+        )}
         <button className="btn-ghost h-8 w-8 px-0 text-ink-mute" title="Report this conversation" aria-label="Report this conversation"
           onClick={() => setReporting({ userId: thread.is_group ? undefined : thread.members[0]?.id })}>
           <Flag className="h-4 w-4" />
@@ -485,6 +536,39 @@ function ThreadView({ threadId, me, tick, status, accent, onClose, onChanged }: 
           ))}
         </div>
       )}
+
+      {thread.is_group && adding && (() => {
+        const inGroup = new Set(thread.members.map((m) => m.id));
+        const candidates = classmates.filter((b) => !inGroup.has(b.id) && !b.blocked);
+        const room = Math.max(0, 7 - thread.members.length);
+        return (
+          <div className="border-b border-line bg-roo-50 px-5 py-3">
+            <p className="mb-2 text-xs font-semibold text-roo-800">Add classmates from this course ({room} more can join)</p>
+            {candidates.length === 0 ? (
+              <p className="text-xs text-ink-soft">Everyone visible in this course is already in the group.</p>
+            ) : (
+              <ul className="max-h-40 space-y-1 overflow-y-auto">
+                {candidates.map((b) => (
+                  <li key={b.id}>
+                    <label className="flex items-center gap-2 rounded-md px-1 py-1 text-sm text-ink hover:bg-white/70">
+                      <input type="checkbox" className="h-4 w-4 accent-roo-500" checked={toAdd.includes(b.id)}
+                        disabled={!toAdd.includes(b.id) && toAdd.length >= room}
+                        onChange={(e) => setToAdd(e.target.checked ? [...toAdd, b.id] : toAdd.filter((x) => x !== b.id))} />
+                      <Avatar id={b.id} name={b.display_name} size={22} />{b.display_name}
+                    </label>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="mt-2 flex gap-2">
+              <button className="btn-primary btn-sm" disabled={!toAdd.length || groupBusy} onClick={addPeople}>
+                {groupBusy ? <Spinner /> : <UserPlus className="h-4 w-4" />}Add {toAdd.length || ''}
+              </button>
+              <button className="btn-ghost btn-sm" onClick={() => { setAdding(false); setToAdd([]); }}>Cancel</button>
+            </div>
+          </div>
+        );
+      })()}
 
       <div className="flex-1 space-y-3 overflow-y-auto bg-slate-50/60 px-5 py-4" aria-live="polite">
         {msgs.length === 0 && (
