@@ -33,6 +33,7 @@ WORKER_TOKEN=$(r)
 PUBLIC_ORIGIN=https://${DOMAIN}
 ALLOWED_EMAIL_DOMAIN=umkc.edu
 DEV_SHOW_CODES=true
+OTP_SKIP_EMAILS=okafor@umkc.edu,lindqvist@umkc.edu,bauer@umkc.edu,amara@umkc.edu,diego@umkc.edu,fatima@umkc.edu,hana@umkc.edu,jonah@umkc.edu,kenji@umkc.edu,lena@umkc.edu,lucas@umkc.edu,omar@umkc.edu,priya@umkc.edu,sofia@umkc.edu,wei@umkc.edu,rafida.zaman@umkc.edu
 ENV
-echo "✅ \$F written"
+echo "✅ \$F written (sign-in codes are off until deploy/send-mail-env.sh is run)"
 REMOTE

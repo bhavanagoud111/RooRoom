@@ -48,6 +48,67 @@ function RolePicker({ role, onChange }: { role: Role; onChange: (r: Role) => voi
   );
 }
 
+type CodeChallenge = { challenge: string; sentTo: string; reused?: boolean };
+type LoginReply = { ok?: boolean; needCode?: boolean } & Partial<CodeChallenge>;
+
+/**
+ * Second step of sign-in: the 6-digit code emailed to the account. "Send a new code" repeats the
+ * password step (the server re-uses a code sent under a minute ago instead of sending another).
+ */
+function CodeStep({ email, password, role, first, onBack }: {
+  email: string; password: string; role: Role; first: CodeChallenge; onBack: () => void;
+}) {
+  const router = useRouter();
+  const [ch, setCh] = useState<CodeChallenge>(first);
+  const [code, setCode] = useState('');
+  const [err, setErr] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true); setErr(null); setInfo(null);
+    try {
+      await api('/api/auth/login/code', { body: { email, challenge: ch.challenge, code } });
+      router.push('/dashboard');
+      router.refresh();
+    } catch (x) {
+      setErr((x as Error).message);
+      setBusy(false);
+    }
+  }
+
+  async function resend() {
+    setBusy(true); setErr(null); setInfo(null);
+    try {
+      const r = await api<LoginReply>('/api/auth/login', { body: { email, password, role } });
+      if (r.challenge) setCh({ challenge: r.challenge, sentTo: r.sentTo ?? ch.sentTo });
+      setInfo(r.reused ? 'A code was sent less than a minute ago. Use that one, or wait a minute and ask again.' : 'New code sent. Use the newest email.');
+      setCode('');
+    } catch (x) {
+      setErr((x as Error).message);
+    }
+    setBusy(false);
+  }
+
+  return (
+    <form onSubmit={submit} className="space-y-4">
+      <p className="text-sm text-ink-soft">
+        We emailed a 6-digit code to <strong>{ch.sentTo}</strong>. It works for 10 minutes. Check Junk if you don’t see it.
+      </p>
+      <input className="input text-center text-2xl tracking-[0.5em]" inputMode="numeric" autoComplete="one-time-code" maxLength={6}
+        value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} aria-label="6-digit code" autoFocus required />
+      {info && <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700" role="status">{info}</p>}
+      {err && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">{err}</p>}
+      <button className="btn-primary w-full" disabled={busy || code.length !== 6}>{busy && <Spinner />}Verify and sign in</button>
+      <div className="flex justify-between text-sm">
+        <button type="button" className="font-semibold text-roo-600 hover:underline" onClick={onBack} disabled={busy}>← Back</button>
+        <button type="button" className="font-semibold text-roo-600 hover:underline" onClick={resend} disabled={busy}>Send a new code</button>
+      </div>
+    </form>
+  );
+}
+
 export function LoginForm() {
   const router = useRouter();
   const [role, setRole] = useState<Role>('student');
@@ -56,18 +117,18 @@ export function LoginForm() {
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  const [code, setCode] = useState<CodeChallenge | null>(null);
+
   async function submit(e?: React.FormEvent) {
     e?.preventDefault();
     setBusy(true);
     setErr(null);
     try {
-      await api('/api/auth/login', { body: { email, password } });
-      // The tab only chooses the screen; the account decides the role. On the wrong tab, sign
-      // straight back out and say which tab to use.
-      const { me } = await api<{ me: { role: Role } }>('/api/me');
-      if (me.role !== role) {
-        await api('/api/auth/logout', { body: {} }).catch(() => {});
-        setErr(`That is a ${me.role} account. Choose “${me.role === 'student' ? 'Student' : 'Professor'}” above to sign in.`);
+      // The tab only chooses the screen; the account decides the role. The server refuses the
+      // wrong tab (before any code is emailed) and says which tab to use.
+      const r = await api<LoginReply>('/api/auth/login', { body: { email, password, role } });
+      if (r.needCode && r.challenge) {
+        setCode({ challenge: r.challenge, sentTo: r.sentTo ?? email });
         setBusy(false);
         return;
       }
@@ -78,6 +139,8 @@ export function LoginForm() {
       setBusy(false);
     }
   }
+
+  if (code) return <CodeStep email={email} password={password} role={role} first={code} onBack={() => setCode(null)} />;
 
   return (
     <div className="space-y-6">
@@ -113,6 +176,7 @@ export function SignupForm({ initialRole = 'student' }: { initialRole?: Role }) 
   const mismatch = confirm.length > 0 && confirm !== f.password;
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [code, setCode] = useState<CodeChallenge | null>(null);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -120,13 +184,23 @@ export function SignupForm({ initialRole = 'student' }: { initialRole?: Role }) 
     setBusy(true);
     setErr(null);
     try {
-      await api('/api/auth/signup', { body: { ...f, role } });
+      const made = await api<{ needCode?: boolean }>('/api/auth/signup', { body: { ...f, role } });
+      if (made.needCode) {
+        // Account created; prove the email address with a code before the first sign-in.
+        const r = await api<LoginReply>('/api/auth/login', { body: { email: f.email, password: f.password, role } });
+        if (r.challenge) { setCode({ challenge: r.challenge, sentTo: r.sentTo ?? f.email }); setBusy(false); return; }
+      }
       router.push('/dashboard');
       router.refresh();
     } catch (x) {
       setErr((x as Error).message);
       setBusy(false);
     }
+  }
+
+  if (code) {
+    return <CodeStep email={f.email.trim().toLowerCase()} password={f.password} role={role} first={code}
+      onBack={() => router.push('/login')} />;
   }
 
   return (
@@ -198,32 +272,95 @@ export function VerifyForm({ email, demo }: { email: string; demo?: string }) {
 }
 
 /**
- * Forgot password. Step 1 asks for the email. Sending the one-time code by email is not switched on
- * yet (planned: Gmail OTP), so for now the page says so instead of pretending a code was sent.
+ * Forgot password. Step 1 emails a 6-digit code (the answer is the same whether or not the
+ * account exists). Step 2 takes the code and the new password, which signs out every device.
  */
 export function ForgotForm({ initialEmail = '' }: { initialEmail?: string }) {
   const [email, setEmail] = useState(initialEmail);
-  const [sent, setSent] = useState(false);
+  const [step, setStep] = useState<'email' | 'code' | 'done'>('email');
+  const [code, setCode] = useState('');
+  const [pw, setPw] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const mismatch = confirm.length > 0 && confirm !== pw;
+  const [err, setErr] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
-  if (sent) {
+  async function send(e?: React.FormEvent) {
+    e?.preventDefault();
+    setBusy(true); setErr(null); setInfo(null);
+    try {
+      await api('/api/auth/forgot', { body: { email } });
+      if (step === 'code') setInfo('If a new code was due, it’s on its way. Use the newest email.');
+      setStep('code');
+    } catch (x) {
+      setErr((x as Error).message);
+    }
+    setBusy(false);
+  }
+
+  async function reset(e: React.FormEvent) {
+    e.preventDefault();
+    if (pw !== confirm) { setErr('The two passwords don’t match.'); return; }
+    setBusy(true); setErr(null); setInfo(null);
+    try {
+      await api('/api/auth/reset', { body: { email, code, password: pw } });
+      setStep('done');
+    } catch (x) {
+      setErr((x as Error).message);
+    }
+    setBusy(false);
+  }
+
+  if (step === 'done') {
     return (
       <div className="space-y-4">
-        <p className="rounded-lg bg-gold-50 px-3 py-2 text-sm text-gold-700">
-          Password reset by email is coming soon. Once it is on, we will send a 6-digit code to <strong>{email}</strong> so you
-          can choose a new password.
-        </p>
-        <Link className="btn-outline w-full" href="/login">Back to sign in</Link>
+        <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">Your password is changed. Sign in with the new one.</p>
+        <Link className="btn-primary w-full" href="/login">Go to sign in</Link>
       </div>
     );
   }
+
+  if (step === 'code') {
+    return (
+      <form onSubmit={reset} className="space-y-4">
+        <p className="text-sm text-ink-soft">
+          If <strong>{email}</strong> has a RooRoom account, we emailed it a 6-digit code. It works for 10 minutes. Check Junk if you don’t see it.
+        </p>
+        <div>
+          <label className="label" htmlFor="code">Code from the email</label>
+          <input id="code" className="input text-center text-2xl tracking-[0.5em]" inputMode="numeric" autoComplete="one-time-code" maxLength={6}
+            value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} autoFocus required />
+        </div>
+        <div>
+          <label className="label" htmlFor="pw">New password (10+ characters)</label>
+          <PasswordInput id="pw" autoComplete="new-password" minLength={10} value={pw} onChange={setPw} />
+        </div>
+        <div>
+          <label className="label" htmlFor="pw2">Confirm new password</label>
+          <PasswordInput id="pw2" autoComplete="new-password" value={confirm} onChange={setConfirm} invalid={mismatch} />
+          {mismatch && <p className="mt-1 text-xs text-red-600">The passwords don’t match yet.</p>}
+        </div>
+        {info && <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700" role="status">{info}</p>}
+        {err && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">{err}</p>}
+        <button className="btn-primary w-full" disabled={busy || code.length !== 6 || mismatch || pw.length < 10}>{busy && <Spinner />}Change password</button>
+        <div className="flex justify-between text-sm">
+          <button type="button" className="font-semibold text-roo-600 hover:underline" onClick={() => setStep('email')} disabled={busy}>← Back</button>
+          <button type="button" className="font-semibold text-roo-600 hover:underline" onClick={() => send()} disabled={busy}>Send a new code</button>
+        </div>
+      </form>
+    );
+  }
+
   return (
-    <form onSubmit={(e) => { e.preventDefault(); setSent(true); }} className="space-y-4">
+    <form onSubmit={send} className="space-y-4">
       <div>
         <label className="label" htmlFor="email">University email</label>
         <input id="email" className="input" type="email" autoComplete="email" value={email} placeholder="you@umkc.edu"
           onChange={(e) => setEmail(e.target.value)} required />
       </div>
-      <button className="btn-primary w-full">Send reset code</button>
+      {err && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">{err}</p>}
+      <button className="btn-primary w-full" disabled={busy}>{busy && <Spinner />}Send reset code</button>
       <p className="text-center text-sm text-ink-mute">
         Remembered it? <Link className="font-semibold text-roo-600 hover:underline" href="/login">Sign in</Link>
       </p>

@@ -2,7 +2,7 @@
 #
 # Networks
 #   internal - no route to the internet. Postgres, object storage, the app, worker and chat live here.
-#   outbound - the egress proxy only. It lets traffic through to openrouter.ai and nothing else.
+#   outbound - the egress proxy only. It lets traffic through to openrouter.ai and smtp.gmail.com, nothing else.
 #   edge     - the gateway only. It is the single published port (127.0.0.1:3300).
 #
 # So: Postgres and object storage have no public port, and the only way out of the stack is OpenRouter.
@@ -98,6 +98,9 @@ services:
       PUBLIC_ORIGIN: ${PUBLIC_ORIGIN}
       ALLOWED_EMAIL_DOMAIN: ${ALLOWED_EMAIL_DOMAIN}
       DEV_SHOW_CODES: ${DEV_SHOW_CODES}
+      GMAIL_USER: ${GMAIL_USER:-}
+      GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD:-}
+      OTP_SKIP_EMAILS: ${OTP_SKIP_EMAILS:-}
     volumes:
       - ./config:/config:ro
     networks: [internal]

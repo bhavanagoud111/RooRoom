@@ -23,6 +23,7 @@
     "lucide-react": "0.468.0",
     "minio": "8.0.7",
     "next": "15.5.29",
+    "nodemailer": "10.2.1",
     "pg": "8.23.1",
     "react": "19.1.10",
     "react-dom": "19.1.10",
@@ -35,6 +36,7 @@
   },
   "devDependencies": {
     "@types/node": "22.15.30",
+    "@types/nodemailer": "8.0.2",
     "@types/pg": "8.15.6",
     "@types/react": "19.1.17",
     "@types/react-dom": "19.1.11",

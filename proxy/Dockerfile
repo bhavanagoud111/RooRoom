@@ -1,5 +1,5 @@
 # Egress allowlist. The app and worker reach the internet only through this proxy,
-# and it only lets connections through to openrouter.ai.
+# and it only lets connections through to openrouter.ai and smtp.gmail.com (sign-in codes).
 FROM alpine:3.20
 RUN apk add --no-cache tinyproxy
 COPY tinyproxy.conf /etc/tinyproxy/tinyproxy.conf

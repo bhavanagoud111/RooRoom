@@ -23,6 +23,9 @@ Placeholders: `IP` = server address, `HOST` = its hostname (`ssh ubuntu@IP hostn
    ssh ubuntu@IP "cat >> ~/.ssh/authorized_keys" < ~/.ssh/rooroom_deploy.pub
    ```
 4. **Secrets on the server:** `bash deploy/send-env.sh ubuntu@IP HOST DOMAIN`.
+   Then, to switch on sign-in codes by email: `bash deploy/send-mail-env.sh ubuntu@IP HOST`
+   (reads the Gmail address and app password from `~/rooroom-gmail.txt` on the Mac; demo accounts and
+   anyone in `OTP_SKIP_EMAILS` skip the code).
 5. **GitHub settings:** under Settings → Secrets and variables → Actions:
    - Secrets:
      - `DEPLOY_SSH_KEY` = contents of `~/.ssh/rooroom_deploy`
