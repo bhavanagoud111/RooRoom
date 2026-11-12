@@ -6,6 +6,7 @@ import { api, Spinner } from '@/components/client';
 import { Markdown } from '@/components/Markdown';
 import { Badge, Empty } from '@/components/ui';
 import { When } from './When';
+import { ComposeTools } from '@/components/ComposeTools';
 
 type Match = { id: string; summary: string | null; answer: string; similarity: number };
 type Result =
@@ -44,9 +45,12 @@ export function AskForm({ courseId, topics, initial, threshold }: { courseId: st
       </div>
       <form className="space-y-3 p-5" onSubmit={(e) => { e.preventDefault(); send(); }}>
         <label className="label" htmlFor="question">Your question</label>
-        <textarea id="question" className="input min-h-[120px] resize-y" dir="auto" maxLength={1500} value={text}
-          onChange={(e) => setText(e.target.value)} 
-          placeholder="Does Part 3 of the project need unit tests? / ¿La parte 3 necesita pruebas unitarias?" />
+        <div className="relative">
+          <textarea id="question" className="input min-h-[120px] resize-y pb-10" dir="auto" maxLength={1500} value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="Does Part 3 of the project need unit tests? / ¿La parte 3 necesita pruebas unitarias?" />
+          <ComposeTools value={text} onChange={setText} />
+        </div>
         <div>
           <label className="label" htmlFor="topic">Topic, module or assignment</label>
           <select id="topic" className="input" value={topic} onChange={(e) => setTopic(e.target.value)}>
@@ -173,8 +177,9 @@ export function ClarificationList({ items, lang, professor }: { items: ClarItem[
     <div>
       <div className="relative mb-4">
         <Search className="absolute left-3 top-2.5 h-4 w-4 text-ink-mute" aria-hidden />
-        <input className="input pl-9" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search clarifications"
+        <input className="input pl-9 pr-20" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search clarifications"
           aria-label="Search clarifications" type="search" />
+        <ComposeTools value={q} onChange={setQ} className="!bottom-0.5" />
       </div>
       <p className="mb-3 text-xs text-ink-mute" aria-live="polite">{shown.length} of {items.length} clarification{items.length === 1 ? '' : 's'}</p>
       <div className="space-y-3">

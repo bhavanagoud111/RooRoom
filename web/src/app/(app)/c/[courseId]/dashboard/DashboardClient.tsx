@@ -5,6 +5,7 @@ import { Megaphone, RefreshCw, Send, Sparkles, Users, Wand2 } from 'lucide-react
 import { api, Spinner } from '@/components/client';
 import { Badge } from '@/components/ui';
 import { When } from '../ask/When';
+import { ComposeTools } from '@/components/ComposeTools';
 
 export type Digest = { id: string; summary: string | null; module: string | null; count: number; updated_at: string };
 
@@ -70,8 +71,11 @@ export function DigestCard({ d, courseId }: { d: Digest; courseId: string }) {
           <p className="mb-2 flex items-center gap-1 text-xs text-roo-700"><Sparkles className="h-3 w-3" />
             AI draft from your course materials. Check it and edit it; nothing is sent until you publish.</p>
         )}
-        <textarea id={`a-${d.id}`} className="input min-h-[110px]" value={answer} onChange={(e) => setAnswer(e.target.value)}
-          placeholder="Yes: Part 3 needs at least three unit tests for the routing table…" />
+        <div className="relative">
+          <textarea id={`a-${d.id}`} className="input min-h-[110px] pb-10" value={answer} onChange={(e) => setAnswer(e.target.value)}
+            placeholder="Yes: Part 3 needs at least three unit tests for the routing table…" />
+          <ComposeTools value={answer} onChange={setAnswer} />
+        </div>
         {err && <p className="mt-2 text-sm text-red-600" role="alert">{err}</p>}
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
           <span className="flex items-center gap-1 text-xs text-ink-mute"><Users className="h-3 w-3" />Goes to every student, translated, and into the Study AI</span>
@@ -102,8 +106,14 @@ export function Announce({ courseId }: { courseId: string }) {
   return (
     <form onSubmit={go} className="card space-y-3 p-5">
       <h3 className="card-title"><Megaphone className="h-4 w-4 text-ink-mute" />Announce to the class</h3>
-      <input className="input" aria-label="Announcement topic" placeholder="Topic (optional), e.g. HW3 deadline" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={200} />
-      <textarea className="input min-h-[90px]" aria-label="Announcement" placeholder="Write your announcement" value={answer} onChange={(e) => { setAnswer(e.target.value); setDone(false); }} />
+      <div className="relative">
+        <input className="input pr-20" aria-label="Announcement topic" placeholder="Topic (optional), e.g. HW3 deadline" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={200} />
+        <ComposeTools value={title} onChange={setTitle} className="!bottom-0.5" />
+      </div>
+      <div className="relative">
+        <textarea className="input min-h-[90px] pb-10" aria-label="Announcement" placeholder="Write your announcement" value={answer} onChange={(e) => { setAnswer(e.target.value); setDone(false); }} />
+        <ComposeTools value={answer} onChange={(v) => { setAnswer(v); setDone(false); }} />
+      </div>
       {err && <p className="text-sm text-red-600">{err}</p>}
       {done && <p className="text-sm text-emerald-700" role="status">Published.</p>}
       <button className="btn-outline w-full" disabled={busy || answer.trim().length < 2}>{busy && <Spinner />}Publish</button>

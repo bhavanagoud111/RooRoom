@@ -8,6 +8,7 @@ import {
 import { api, Spinner, Translatable, useConfirm } from '@/components/client';
 import { Badge, Empty, LoadingSkeleton, PageHeader, timeAgo } from '@/components/ui';
 import { TAGS } from '../tags';
+import { ComposeTools } from '@/components/ComposeTools';
 
 type Slot = { start: string; end: string; label: string };
 type Buddy = {
@@ -215,14 +216,18 @@ export function Buddies({ courseId, courseColor, me, initialThread }: {
           {data.buddies.length > 3 && (
             <div className="relative mb-3">
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-ink-mute" aria-hidden />
-              <input type="search" className="input pl-9" placeholder="Search by name or topic" value={filter}
+              <input type="search" className="input pl-9 pr-20" placeholder="Search by name or topic" value={filter}
                 onChange={(e) => setFilter(e.target.value)} aria-label="Search classmates" />
+              <ComposeTools value={filter} onChange={setFilter} className="!bottom-0.5" />
             </div>
           )}
           {picking && (
             <div className="mb-3 space-y-2 rounded-lg border border-roo-100 bg-roo-50 p-3">
-              <input className="input" placeholder="Group name (optional), e.g. Project 2 team" value={groupTitle}
-                maxLength={60} onChange={(e) => setGroupTitle(e.target.value)} aria-label="Group name" />
+              <div className="relative">
+                <input className="input pr-20" placeholder="Group name (optional), e.g. Project 2 team" value={groupTitle}
+                  maxLength={60} onChange={(e) => setGroupTitle(e.target.value)} aria-label="Group name" />
+                <ComposeTools value={groupTitle} onChange={setGroupTitle} className="!bottom-0.5" />
+              </div>
               <button className="btn-primary w-full" disabled={picked.length < 2 || !!busy}
                 onClick={() => openThread(picked, groupTitle)}>
                 {busy ? <Spinner /> : <Users className="h-4 w-4" />}Start group with {picked.length} classmates
@@ -543,6 +548,7 @@ function ThreadView({ threadId, me, tick, status, accent, onClose, onChanged }: 
               placeholder={file ? 'Add a caption (optional)…' : 'Write a message…'} aria-label="Message" dir="auto"
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(e); } }} />
+            <ComposeTools value={text} onChange={setText} placement="beside" />
             <button className="btn-primary h-[42px] w-[42px] shrink-0 px-0" disabled={sending || (!text.trim() && !file)} aria-label="Send">
               {sending ? <Spinner /> : <Send className="h-4 w-4" />}
             </button>
@@ -580,7 +586,10 @@ function ReportBox({ threadId, target, onDone }: {
             className={clsx('chip border', reason === r ? 'border-red-400 bg-red-100 text-red-800' : 'border-line bg-white text-ink-soft')} aria-pressed={reason === r}>{r}</button>
         ))}
       </div>
-      <input className="input" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Or describe what happened" maxLength={500} aria-label="Reason" />
+      <div className="relative">
+        <input className="input pr-20" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Or describe what happened" maxLength={500} aria-label="Reason" />
+        <ComposeTools value={reason} onChange={setReason} className="!bottom-0.5" />
+      </div>
       {err && <p className="text-xs text-red-600">{err}</p>}
       <div className="flex gap-2">
         <button className="btn-danger btn-sm" disabled={busy || reason.trim().length < 3}>{busy && <Spinner />}Send report</button>

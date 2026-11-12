@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { api, Spinner, useConfirm } from '@/components/client';
 import { Badge, PageHeader } from '@/components/ui';
+import { ComposeTools } from '@/components/ComposeTools';
 
 const Cal = dynamic(() => import('./Cal'), { ssr: false, loading: () => <div className="flex h-[680px] items-center justify-center"><Spinner /></div> });
 
@@ -538,7 +539,10 @@ function EventEditor({ state, courses, confirm, onClose, onSaved }: {
         {state.source && state.mode === 'edit' && <Badge tone="gray">Added by {state.source === 'voice' ? 'voice' : state.source === 'syllabus' ? 'syllabus' : 'hand'}</Badge>}
         <div>
           <label className="label" htmlFor="ev-t">Title</label>
-          <input id="ev-t" ref={firstRef} className="input" required maxLength={200} value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} placeholder="Networks project" />
+          <div className="relative">
+            <input id="ev-t" ref={firstRef} className="input pr-20" required maxLength={200} value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} placeholder="Networks project" />
+            <ComposeTools value={f.title} onChange={(v) => setF((x) => ({ ...x, title: v }))} className="!bottom-0.5" />
+          </div>
         </div>
         <div className="grid grid-cols-2 gap-2">
           <div>

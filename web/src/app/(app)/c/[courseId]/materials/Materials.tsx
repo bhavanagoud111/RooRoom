@@ -4,6 +4,7 @@ import { AlertTriangle, CheckCircle2, Download, FileText, Globe2, Lock, Trash2, 
 import { api, Spinner, useConfirm } from '@/components/client';
 import { Badge, Empty, LoadingSkeleton, PageHeader } from '@/components/ui';
 import { TAGS } from '../tags';
+import { ComposeTools } from '@/components/ComposeTools';
 
 type Doc = {
   id: string; title: string; kind: string; module: string | null; visibility: 'class' | 'private';
@@ -125,7 +126,8 @@ export function Materials({ courseId, isProf }: { courseId: string; isProf: bool
         <input ref={fileRef} type="file" accept="application/pdf" className="block w-full text-sm text-ink-soft file:mr-3 file:h-9 file:rounded-lg file:border file:border-line file:bg-white file:px-3 file:text-sm file:font-medium file:text-ink hover:file:bg-slate-50" aria-label="PDF file" />
         <div>
           <label className="label" htmlFor="t">Title</label>
-          <input id="t" className="input" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder={isProf ? 'Module 3: Transport layer' : 'My notes on Module 3'} />
+          <div className="relative"><input id="t" className="input pr-20" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder={isProf ? 'Module 3: Transport layer' : 'My notes on Module 3'} />
+          <ComposeTools value={form.title} onChange={(v) => setForm((f) => ({ ...f, title: v }))} className="!bottom-0.5" /></div>
         </div>
         <div className="grid grid-cols-2 gap-2">
           <div>

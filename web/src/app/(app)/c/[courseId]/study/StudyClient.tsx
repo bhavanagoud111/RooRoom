@@ -10,6 +10,8 @@ import { Markdown, stripCitations } from '@/components/Markdown';
 import { Badge, Empty, PageHeader } from '@/components/ui';
 import { TAGS } from '../tags';
 import { languageName } from '@/lib/languages';
+import { ComposeTools } from '@/components/ComposeTools';
+import { bestMatch, VoiceButton } from '@/components/VoiceButton';
 
 type Source = {
   n: number; chunk_id: number; document_id: string | null; clarification_id: string | null;
@@ -139,6 +141,7 @@ function AskPanel({ courseId, courseCode, lang, hasDocs }: { courseId: string; c
         <textarea className="input min-h-[44px] resize-none" rows={2} maxLength={1500} value={q} placeholder="Ask about this course, in any language…"
           onChange={(e) => setQ(e.target.value)} aria-label="Your question"
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }} />
+        <ComposeTools value={q} onChange={setQ} placement="beside" />
         {msgs.length > 0 && (
           <button type="button" className="btn-ghost px-2" onClick={() => setMsgs([])} title="New conversation" aria-label="New conversation">
             <RotateCcw className="h-4 w-4" />
@@ -303,6 +306,16 @@ function ScopePanel({ kind, courseId, lang, scopes }: { kind: 'summary' | 'cards
             </optgroup>
           </select>
         </div>
+        <VoiceButton label={kind === 'summary' ? 'Say what to summarise, e.g. “Module 4”' : 'Say what to make flashcards for, e.g. “Module 4”'}
+          onFinal={(heard) => {
+            const options = [
+              ...scopes.modules.map((m) => ({ value: `m:${m}`, label: m })),
+              ...docs.map((d) => ({ value: `d:${d.id}`, label: `${d.title} ${d.module ?? ''}` })),
+            ];
+            const hit = bestMatch(heard, options);
+            if (hit) setPick(hit.value);
+            else setErr(`I heard “${heard}”, but no module or document matches. Pick one from the list.`);
+          }} />
         <button className="btn-primary" onClick={run} disabled={!pick || busy}>
           {busy ? <Spinner /> : kind === 'summary' ? <BookMarked className="h-4 w-4" /> : <Layers className="h-4 w-4" />}
           {kind === 'summary' ? 'Summarise' : 'Make flashcards'}

@@ -8,13 +8,15 @@ import type { Source } from '@/lib/untrusted';
 
 const Schema = z.object({
   text: z.string().min(1).max(6000),
-  kind: z.enum(['question', 'answer', 'message', 'note', 'study', 'flashcard']),
+  kind: z.enum(['question', 'answer', 'message', 'note', 'study', 'flashcard', 'draft']),
   target: z.string().refine((c) => LANGUAGES.some((l) => l.code === c), 'unknown language'),
 });
 
 const SOURCE: Record<string, Source> = {
   question: 'student_question', answer: 'professor_answer', message: 'student_message',
   note: 'student_note', study: 'course_document', flashcard: 'course_document',
+  // Something the person is still writing (the "Translate to English" button). Never cached.
+  draft: 'student_message',
 };
 
 export const POST = route(async (req, { me }) => {

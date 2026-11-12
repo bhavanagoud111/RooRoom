@@ -5,6 +5,7 @@ import { BellOff, Flag, Inbox, Power, Reply, RotateCw, Send } from 'lucide-react
 import { api, Spinner } from '@/components/client';
 import { Badge, Empty } from '@/components/ui';
 import { When } from '../ask/When';
+import { ComposeTools } from '@/components/ComposeTools';
 
 type Note = { id: string; body: string; delivered_at: string; reported: boolean; replies: { id: string; body: string; created_at: string }[] };
 
@@ -103,9 +104,12 @@ function NoteCard({ n }: { n: Note }) {
         </div>
       ) : (
         <div className="mt-3 space-y-2">
-          <textarea className="input min-h-[80px]" value={text} onChange={(e) => setText(e.target.value)} autoFocus
-            aria-label={mode === 'reply' ? 'Reply' : 'Reason for report'}
-            placeholder={mode === 'reply' ? 'Your reply goes only to this student, anonymously.' : 'Why should this note be reviewed? The reviewer does not show you the author.'} />
+          <div className="relative">
+            <textarea className="input min-h-[80px] pb-10" value={text} onChange={(e) => setText(e.target.value)} autoFocus
+              aria-label={mode === 'reply' ? 'Reply' : 'Reason for report'}
+              placeholder={mode === 'reply' ? 'Your reply goes only to this student, anonymously.' : 'Why should this note be reviewed? The reviewer does not show you the author.'} />
+            <ComposeTools value={text} onChange={setText} />
+          </div>
           {err && <p className="text-sm text-red-600">{err}</p>}
           <div className="flex gap-2">
             <button className={mode === 'reply' ? 'btn-primary' : 'btn-danger'} onClick={submit} disabled={busy || text.trim().length < (mode === 'reply' ? 1 : 3)}>

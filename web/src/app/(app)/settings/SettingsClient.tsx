@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { api, Spinner } from '@/components/client';
 
 import { LANGUAGES } from '@/lib/languages';
+import { ComposeTools } from '@/components/ComposeTools';
 
 type Me = {
   id: string; display_name: string; role: 'student' | 'professor'; preferred_language: string;
@@ -42,7 +43,10 @@ export function ProfileForm({ me }: { me: Me }) {
     <form onSubmit={save} className="card grid gap-5 p-6 sm:grid-cols-2">
       <div>
         <label className="label" htmlFor="dn">Display name</label>
-        <input id="dn" className="input" maxLength={60} value={f.displayName} onChange={(e) => setF({ ...f, displayName: e.target.value })} required />
+        <div className="relative">
+          <input id="dn" className="input pr-20" maxLength={60} value={f.displayName} onChange={(e) => setF({ ...f, displayName: e.target.value })} required />
+          <ComposeTools value={f.displayName} onChange={(v) => setF((x) => ({ ...x, displayName: v }))} className="!bottom-0.5" />
+        </div>
         <p className="mt-1 text-xs text-ink-mute">Your email address is never shown to anyone.</p>
       </div>
       <div>

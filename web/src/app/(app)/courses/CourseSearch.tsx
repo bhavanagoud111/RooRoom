@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Check, ChevronDown, Clock, GraduationCap, Plus, Search, UserRound } from 'lucide-react';
 import { api, Spinner } from '@/components/client';
+import { ComposeTools } from '@/components/ComposeTools';
 
 type Section = { section: string; component: string; days_times: string; class_nbr: string };
 type Room = {
@@ -85,8 +86,9 @@ export function CourseSearch() {
       <div className="grid gap-2 sm:grid-cols-[1fr_220px_170px]">
         <div className="relative">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-ink-mute" />
-          <input className="input pl-9" placeholder="Course code, title or topic: “COMP-SCI 5520”, “organic chemistry”, “nursing ethics”"
+          <input className="input pl-9 pr-20" placeholder="Course code, title or topic: “COMP-SCI 5520”, “organic chemistry”, “nursing ethics”"
             value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search the UMKC catalog" />
+          <ComposeTools value={q} onChange={setQ} className="!bottom-0.5" />
         </div>
         <select className="input" value={subject} onChange={(e) => setSubject(e.target.value)} aria-label="Subject">
           <option value="">All subjects ({subjects.length})</option>

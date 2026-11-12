@@ -6,6 +6,7 @@ import { AlertTriangle, Ban, CheckCircle2, Clock3,  MessageSquareHeart, PauseCir
 import { api, Spinner } from '@/components/client';
 import { Badge, Empty } from '@/components/ui';
 import { When } from '../ask/When';
+import { ComposeTools } from '@/components/ComposeTools';
 
 type Gate = { open: boolean; reason: string | null; usedThisWeek: number; weeklyLimit: number; smallClass: boolean; suspendedUntil: string | null; strikes: number };
 type Result =
@@ -55,9 +56,12 @@ export function NoteCompose({ courseId, professor, gate, rules }: { courseId: st
         ) : (
           <form onSubmit={(e) => { e.preventDefault(); send(); }} className="space-y-3">
             <label className="label" htmlFor="note">Your note</label>
-            <textarea id="note" className="input min-h-[150px] resize-y" dir="auto" maxLength={2000} value={text}
-              onChange={(e) => { setText(e.target.value); setRes(null); }}
-              placeholder="Write in any language. Be honest; be fair." />
+            <div className="relative">
+              <textarea id="note" className="input min-h-[150px] resize-y pb-10" dir="auto" maxLength={2000} value={text}
+                onChange={(e) => { setText(e.target.value); setRes(null); }}
+                placeholder="Write in any language. Be honest; be fair." />
+              <ComposeTools value={text} onChange={(v) => { setText(v); setRes(null); }} />
+            </div>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <span className="text-xs text-ink-mute">{gate.usedThisWeek} of {gate.weeklyLimit} notes used this week in this course</span>
               <button className="btn-primary" disabled={busy || text.trim().length < 5}>
