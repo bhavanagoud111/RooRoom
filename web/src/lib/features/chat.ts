@@ -195,6 +195,7 @@ export async function getMessages(db: Db, threadId: string, after?: string | nul
                         FROM message_attachments a WHERE a.message_id = m.id), '[]'::json) AS attachments
        FROM messages m LEFT JOIN profiles p ON p.id = m.sender_id
       WHERE m.thread_id = $1 AND ($2::timestamptz IS NULL OR m.created_at > $2::timestamptz)
+        AND NOT EXISTS (SELECT 1 FROM message_hides h WHERE h.message_id = m.id AND h.user_id = app_uid())
       ORDER BY m.created_at DESC LIMIT 200`, [threadId, after ?? null]);
   return r.rows.reverse().map((m) => ({ ...m, body: open(m.body) }));
 }
@@ -231,6 +232,15 @@ export async function sendAttachment(db: Db, me: Me, threadId: string, caption: 
     id: r.rows[0].id, sender_id: me.id, sender_name: me.display_name, mine: true, body: caption, created_at: r.rows[0].created_at,
     attachments: [{ id: file.id, filename: file.filename, content_type: file.contentType, size_bytes: file.size }],
   };
+}
+
+/** "Delete for me": hides one message from the signed-in person's view. Others still see it. */
+export async function hideMessage(db: Db, threadId: string, messageId: string) {
+  await threadMeta(db, threadId);
+  const m = await db.query('SELECT 1 FROM messages WHERE id = $1 AND thread_id = $2', [messageId, threadId]);
+  if (!m.rows[0]) throw new HttpError(404, 'Message not found.');
+  await db.query(
+    `INSERT INTO message_hides (user_id, message_id) VALUES (app_uid(), $1) ON CONFLICT DO NOTHING`, [messageId]);
 }
 
 export async function block(db: Db, me: Me, userId: string) {

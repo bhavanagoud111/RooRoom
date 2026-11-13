@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import clsx from 'clsx';
 import {
-  ArrowLeft, Ban, BookOpen, CalendarClock, Download, FileText, Flag, LogOut, MessageCircle, Paperclip, Search, Send, ShieldCheck, Sparkles, UserPlus, Users, X,
+  ArrowLeft, Ban, BookOpen, CalendarClock, Download, FileText, Flag, LogOut, MessageCircle, Paperclip, Search, Send, ShieldCheck, Sparkles, Trash2, UserPlus, Users, X,
 } from 'lucide-react';
 import { api, Spinner, Translatable, useConfirm } from '@/components/client';
 import { Badge, Empty, LoadingSkeleton, PageHeader, timeAgo } from '@/components/ui';
@@ -440,6 +440,19 @@ function ThreadView({ threadId, me, tick, status, accent, classmates, onClose, o
     }
   }
 
+  async function deleteForMe(messageId: string) {
+    if (!(await confirm({
+      title: 'Delete this message for you?', confirmLabel: 'Delete for me', danger: true,
+      body: 'It disappears from your screen only. Everyone else in the chat still sees it.',
+    }))) return;
+    try {
+      await api(`/api/threads/${threadId}/messages/${messageId}`, { method: 'DELETE' });
+      setMsgs((list) => list.filter((x) => x.id !== messageId));
+    } catch (x) {
+      setErr((x as Error).message);
+    }
+  }
+
   async function leaveGroup() {
     if (!(await confirm({
       title: 'Leave this group?', confirmLabel: 'Leave group', danger: true,
@@ -591,12 +604,18 @@ function ThreadView({ threadId, me, tick, status, accent, classmates, onClose, o
                 {new Date(m.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
               </p>
             </div>
-            {!m.mine && (
-              <button className="self-center text-ink-mute opacity-0 transition hover:text-red-600 group-hover:opacity-100 focus:opacity-100"
-                onClick={() => setReporting({ messageId: m.id })} aria-label="Report this message" title="Report this message">
-                <Flag className="h-3.5 w-3.5" />
+            <div className="flex flex-col justify-center gap-1.5 opacity-0 transition group-hover:opacity-100 focus-within:opacity-100">
+              <button className="text-ink-mute hover:text-red-600"
+                onClick={() => deleteForMe(m.id)} aria-label="Delete this message for me" title="Delete for me">
+                <Trash2 className="h-3.5 w-3.5" />
               </button>
-            )}
+              {!m.mine && (
+                <button className="text-ink-mute hover:text-red-600"
+                  onClick={() => setReporting({ messageId: m.id })} aria-label="Report this message" title="Report this message">
+                  <Flag className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
           </div>
         ))}
         <div ref={endRef} />
