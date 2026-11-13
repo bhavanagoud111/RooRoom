@@ -21,6 +21,7 @@ const Schema = z.object({
 // 2026-11-12: when email codes are on (lib/mail.ts), the new account is NOT signed in here. The
 // page goes on to the normal sign-in, which emails a code; entering it verifies the address.
 // Accounts on OTP_SKIP_EMAILS are verified and signed in straight away, as before.
+// 2026-11-13: professor sign-ups skip the code too (verified and signed in straight away).
 export const POST = route(async (req) => {
   const { email, password, displayName, role } = await body(req, Schema);
   const domain = (process.env.ALLOWED_EMAIL_DOMAIN ?? 'umkc.edu').toLowerCase();
@@ -28,7 +29,7 @@ export const POST = route(async (req) => {
     throw new HttpError(400, `Use your university email address (@${domain}).`);
   }
   const hash = await hashPassword(password);
-  const codeNeeded = needsCode(email);
+  const codeNeeded = needsCode(email) && role !== 'professor';
   let created: { user_id: string; rooms: number };
   try {
     created = await anonymous(async (db) =>

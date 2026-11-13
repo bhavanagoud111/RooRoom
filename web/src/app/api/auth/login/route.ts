@@ -24,6 +24,8 @@ const attempts = new Map<string, { n: number; until: number }>();
  * Step 1 of sign-in: email + password. When the account needs a code (see lib/mail.ts), a
  * 6-digit code is emailed and the answer is { needCode, challenge }; step 2 is /api/auth/login/code.
  * Accounts on OTP_SKIP_EMAILS (demo accounts) are signed in straight away.
+ * Professor accounts also skip the code (2026-11-13: professors' inboxes aren't available for the
+ * demo), unless the account was never verified; then the code is what verifies it.
  */
 export const POST = route(async (req) => {
   const { email, password, role } = await body(req, Schema);
@@ -46,7 +48,8 @@ export const POST = route(async (req) => {
     throw new HttpError(409, `That is a ${actual} account. Choose “${actual === 'student' ? 'Student' : 'Professor'}” above to sign in.`);
   }
 
-  if (needsCode(email)) {
+  const professorSkip = actual === 'professor' && user.verified;
+  if (needsCode(email) && !professorSkip) {
     const { challenge, status } = await issueCode(user.id, email, 'login');
     await withUser(user.id, (db) => audit(db, user.id, 'login_code_sent', { reused: status === 'reused' }));
     return { needCode: true, challenge, sentTo: maskEmail(email), reused: status === 'reused' };
