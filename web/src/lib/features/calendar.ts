@@ -3,7 +3,10 @@ import { z } from 'zod';
 import { HttpError, type Me } from '../auth';
 import type { Db } from '../db';
 import { audit } from '../limits';
-import { llm, type ChatMessage, type ToolDef } from '../llm';
+import { tool } from '@langchain/core/tools';
+import { AIMessage, ToolMessage, type BaseMessage } from '@langchain/core/messages';
+import { Annotation, END, START, StateGraph } from '@langchain/langgraph';
+import { chatModel, invokeModel, textOf, toLangChain, toolCallsOf, type ChatMessage } from '../llm';
 import { DATA_RULE, untrusted } from '../untrusted';
 import { localYmd, zonedToUtc } from './chat';
 
@@ -138,71 +141,45 @@ export const PendingSchema = z.array(z.discriminatedUnion('type', [
   z.object({ type: z.literal('delete'), id: z.string().uuid() }),
 ])).max(10);
 
-const TOOLS: ToolDef[] = [
-  {
-    type: 'function',
-    function: {
-      name: 'create_event',
-      description: 'Add a block or deadline to the student’s calendar. Times are LOCAL wall-clock times in the student’s time zone, formatted YYYY-MM-DDTHH:MM (no offset).',
-      parameters: {
-        type: 'object',
-        properties: {
-          title: { type: 'string', description: 'Short title, e.g. "Networks project" or "HW3 due"' },
-          start: { type: 'string', description: 'Local start, YYYY-MM-DDTHH:MM' },
-          end: { type: 'string', description: 'Local end, YYYY-MM-DDTHH:MM. For a deadline with no time given, use 23:59 on that day and start at 23:00.' },
-          kind: { type: 'string', enum: ['study', 'deadline', 'exam', 'class'] },
-          course_code: { type: 'string', description: 'One of the student’s course codes, or omit if none fits' },
-        },
-        required: ['title', 'start', 'end', 'kind'],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'update_event',
-      description: 'Change an existing event. Use list_events first to find its id.',
-      parameters: {
-        type: 'object',
-        properties: {
-          event_id: { type: 'string' },
-          title: { type: 'string' },
-          start: { type: 'string', description: 'Local start, YYYY-MM-DDTHH:MM' },
-          end: { type: 'string', description: 'Local end, YYYY-MM-DDTHH:MM' },
-        },
-        required: ['event_id'],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'delete_event',
-      description: 'Delete an event. The student will be asked to confirm before anything is deleted. Use list_events first to find its id.',
-      parameters: { type: 'object', properties: { event_id: { type: 'string' } }, required: ['event_id'] },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'list_course_dates',
-      description: 'The important dates (deadlines, quizzes, exams) read from each of the student’s course syllabi, whether each course has a syllabus yet, and the professor’s latest announcements. Call this for any request about syllabus dates, deadlines or exams, e.g. "block study time before my deadlines".',
-      parameters: { type: 'object', properties: {} },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'list_events',
-      description: 'List the student’s events between two local dates (inclusive), YYYY-MM-DD.',
-      parameters: {
-        type: 'object',
-        properties: { from: { type: 'string' }, to: { type: 'string' } },
-        required: ['from', 'to'],
-      },
-    },
-  },
-];
+// The five tools, as LangChain tools. Same names, fields and descriptions as the model has always
+// seen; each one runs our own code as the signed-in student (RLS), passed in as `run`.
+type ToolArgs = Record<string, string>;
+function calendarTools(run: (name: string, args: ToolArgs) => Promise<string>) {
+  const t = (name: string, description: string, schema: z.ZodObject<z.ZodRawShape>) =>
+    tool(async (args: unknown) => run(name, args as ToolArgs), { name, description, schema });
+  return [
+    t('create_event',
+      'Add a block or deadline to the student’s calendar. Times are LOCAL wall-clock times in the student’s time zone, formatted YYYY-MM-DDTHH:MM (no offset).',
+      z.object({
+        title: z.string().describe('Short title, e.g. "Networks project" or "HW3 due"'),
+        start: z.string().describe('Local start, YYYY-MM-DDTHH:MM'),
+        end: z.string().describe('Local end, YYYY-MM-DDTHH:MM. For a deadline with no time given, use 23:59 on that day and start at 23:00.'),
+        kind: z.enum(['study', 'deadline', 'exam', 'class']),
+        course_code: z.string().optional().describe('One of the student’s course codes, or omit if none fits'),
+      })),
+    t('update_event', 'Change an existing event. Use list_events first to find its id.',
+      z.object({
+        event_id: z.string(),
+        title: z.string().optional(),
+        start: z.string().optional().describe('Local start, YYYY-MM-DDTHH:MM'),
+        end: z.string().optional().describe('Local end, YYYY-MM-DDTHH:MM'),
+      })),
+    t('delete_event', 'Delete an event. The student will be asked to confirm before anything is deleted. Use list_events first to find its id.',
+      z.object({ event_id: z.string() })),
+    t('list_course_dates',
+      'The important dates (deadlines, quizzes, exams) read from each of the student’s course syllabi, whether each course has a syllabus yet, and the professor’s latest announcements. Call this for any request about syllabus dates, deadlines or exams, e.g. "block study time before my deadlines".',
+      z.object({})),
+    t('list_events', 'List the student’s events between two local dates (inclusive), YYYY-MM-DD.',
+      z.object({ from: z.string(), to: z.string() })),
+  ];
+}
+
+// LangGraph state for the calendar agent: the conversation, plus how many model turns it has used.
+const CalendarState = Annotation.Root({
+  messages: Annotation<BaseMessage[]>({ reducer: (a, b) => a.concat(b), default: () => [] }),
+  steps: Annotation<number>({ reducer: (_a, b) => b, default: () => 0 }),
+});
+const MAX_STEPS = 6;
 
 function localToUtc(local: string, tz: string): Date {
   const m = local.trim().match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{1,2}):(\d{2}))?/);
@@ -245,7 +222,7 @@ export async function runCalendarAgent(db: Db, me: Me, transcript: string, histo
     DATA_RULE,
   ].join('\n');
 
-  const messages: ChatMessage[] = [
+  const start: ChatMessage[] = [
     { role: 'system', content: system },
     ...history.slice(-6).map((h) => ({ role: h.role, content: h.role === 'user' ? untrusted('transcript', h.content) : h.content }) as ChatMessage),
     { role: 'user', content: untrusted('transcript', transcript) },
@@ -336,29 +313,61 @@ export async function runCalendarAgent(db: Db, me: Me, transcript: string, histo
     }
   }
 
+  // The agent as a LangGraph graph:  START → agent ⇄ tools → END.
+  //   agent: the model (with the five LangChain tools bound) decides what to do next.
+  //   tools: runs every tool call it asked for (at most 16) and hands the results back.
+  // It stops when the model replies without a tool call, or after MAX_STEPS model turns.
+  // Room for a dozen tool calls in one turn: at 700 tokens, batched create_event calls were cut off
+  // mid-JSON and arrived empty (2026-11-11).
   let reply = '';
   const trace: string[] = [];
-  for (let step = 0; step < 6; step++) {
-    // Room for a dozen tool calls in one turn: at 700 tokens, batched create_event calls were cut off
-    // mid-JSON and arrived empty (2026-11-11).
-    const r = await llm({ task: 'calendar_agent', messages, tools: TOOLS, temperature: 0, maxTokens: 2500 });
-    if (!r.toolCalls.length) {
-      // Only the part inside <reply> reaches the student (the model sometimes thinks aloud first).
-      const m = r.content.match(/<reply>([\s\S]*?)(?:<\/reply>|$)/i);
-      reply = (m ? m[1] : r.content).replace(/<\/?reply>/gi, '').trim();
-      trace.push('reply');
-      break;
-    }
-    trace.push(r.toolCalls.map((c) => c.function.name).join('+'));
-    messages.push({ role: 'assistant', content: r.content || null, tool_calls: r.toolCalls });
-    for (const call of r.toolCalls.slice(0, 16)) {
-      let args: Record<string, string> = {};
-      try { args = JSON.parse(call.function.arguments || '{}'); } catch { /* empty */ }
-      const result = await exec(call.function.name, args);
-      if (result.startsWith('error')) trace.push(`${call.function.name} ${result.slice(0, 160)} ${JSON.stringify(args).slice(0, 160)}`);
-      messages.push({ role: 'tool', tool_call_id: call.id, content: result });
-    }
-  }
+  const tools = calendarTools(exec);
+  const byName = new Map(tools.map((x) => [x.name, x]));
+  const model = chatModel('calendar_agent', { temperature: 0, maxTokens: 2500 }).bindTools(tools);
+
+  const graph = new StateGraph(CalendarState)
+    .addNode('agent', async (s) => {
+      const r = await invokeModel(model as never, s.messages);
+      const calls = toolCallsOf(r);
+      if (!calls.length) {
+        // Only the part inside <reply> reaches the student (the model sometimes thinks aloud first).
+        const content = textOf(r);
+        const m = content.match(/<reply>([\s\S]*?)(?:<\/reply>|$)/i);
+        reply = (m ? m[1] : content).replace(/<\/?reply>/gi, '').trim();
+        trace.push('reply');
+      } else {
+        trace.push(calls.map((c) => c.function.name).join('+'));
+      }
+      return { messages: [r], steps: s.steps + 1 };
+    })
+    .addNode('tools', async (s) => {
+      const last = s.messages[s.messages.length - 1] as AIMessage;
+      const out: ToolMessage[] = [];
+      for (const call of toolCallsOf(last).slice(0, 16)) {
+        let args: ToolArgs = {};
+        try { args = JSON.parse(call.function.arguments || '{}'); } catch { /* empty */ }
+        const t = byName.get(call.function.name);
+        let result: string;
+        try {
+          result = t ? String(await t.invoke(args as never)) : 'unknown tool';
+        } catch (e) {
+          // Arguments that don't fit the tool's schema: tell the model, as before, instead of failing.
+          result = `error: ${(e as Error).message.slice(0, 200)}`;
+        }
+        if (result.startsWith('error')) trace.push(`${call.function.name} ${result.slice(0, 160)} ${JSON.stringify(args).slice(0, 160)}`);
+        out.push(new ToolMessage({ tool_call_id: call.id, content: result }));
+      }
+      return { messages: out };
+    })
+    .addEdge(START, 'agent')
+    .addConditionalEdges('agent', (s) => {
+      const last = s.messages[s.messages.length - 1] as AIMessage;
+      return toolCallsOf(last).length ? 'tools' : END;
+    }, ['tools', END])
+    .addConditionalEdges('tools', (s) => (s.steps >= MAX_STEPS ? END : 'agent'), ['agent', END])
+    .compile();
+
+  await graph.invoke({ messages: toLangChain(start) }, { recursionLimit: 2 * MAX_STEPS + 4 });
   if (!reply) reply = done.length ? `Done: ${done.map((x) => x.event.title).join(', ')}.` : 'Sorry, I didn’t catch that. Could you say it again?';
   await audit(db, me.id, 'calendar_agent', { done: done.length, pending: pending.length, steps: trace });
   return { reply, done, pending };

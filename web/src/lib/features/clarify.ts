@@ -6,6 +6,7 @@ import { asModerator, vec, withUser, type Db } from '../db';
 import { embedOne } from '../embed';
 import { stripOutsideLinks } from '../egress';
 import { audit, spend } from '../limits';
+import { Annotation, END, START, StateGraph } from '@langchain/langgraph';
 import { llm, llmJson } from '../llm';
 import { wordListHit } from './notes';
 import { toEnglish, translate } from '../translate';
@@ -73,63 +74,114 @@ export type SubmitResult =
   | { status: 'already_answered'; matches: { id: string; summary: string | null; answer: string; similarity: number }[] }
   | { status: 'submitted'; questionId: string; clusterStatus: 'waiting' | 'digest'; english: string; redacted: string; wordsRemoved: boolean };
 
+type Prior = { id: string; summary: string | null; answer: string; similarity: number }[];
+
+// The anonymous-question pipeline, as a LangGraph graph. Each node is one agent or one step:
+//   START → budget → screen (Translator + Filter) → redact (Redactor) → check_answered
+//         ─(already answered)→ END
+//         └→ save → group → digest (Digest agent, only at the threshold) → END
+const QuestionState = Annotation.Root({
+  me: Annotation<Me>(),
+  courseId: Annotation<string>(),
+  input: Annotation<{ text: string; module: string | null; force: boolean }>(),
+  lang: Annotation<string>(),
+  english: Annotation<string>(),
+  wordsRemoved: Annotation<boolean>(),
+  redacted: Annotation<string>(),
+  embedding: Annotation<number[]>(),
+  questionId: Annotation<string>(),
+  grounding: Annotation<Grounding>(),
+  cluster: Annotation<{ clusterId: string; count: number; threshold: number }>(),
+  result: Annotation<SubmitResult | null>({ reducer: (_a, b) => b, default: () => null }),
+});
+type QS = typeof QuestionState.State;
+
+const questionGraph = new StateGraph(QuestionState)
+  // 1. Budget and enrolment first, so a failed call cannot be retried without limit.
+  .addNode('budget', async (s: QS) => {
+    await withUser(s.me.id, async (db) => {
+      const c = await requireMember(db, s.courseId);
+      if (c.is_prof) throw new HttpError(403, 'Professors answer questions; they do not ask them.');
+      await spend(db, s.me.id, 'question', s.courseId);
+      await spend(db, s.me.id, 'ai', s.courseId, 2);
+    });
+    return {};
+  })
+  // 2. Translator (to English, original kept), then the Filter (word list + screening model).
+  .addNode('screen', async (s: QS) => {
+    const { lang, english: raw } = await toEnglish(s.input.text, 'student_question');
+    try {
+      const screen = await screenQuestion(raw);
+      return { lang, english: screen.cleaned, wordsRemoved: screen.abusive };
+    } catch (e) {
+      await withUser(s.me.id, (db) => audit(db, s.me.id, 'question_blocked', { course_id: s.courseId, reason: (e as Error).message.slice(0, 80) }));
+      throw e;
+    }
+  })
+  // 3. Redactor, then the search vector.
+  .addNode('redact', async (s: QS) => {
+    const redacted = await redact(s.english, 'student_question');
+    return { redacted, embedding: await embedOne(redacted) };
+  })
+  // 4. Before entering the pool: has the professor already answered something like this?
+  .addNode('check_answered', async (s: QS) => {
+    const prior = await withUser(s.me.id, async (db) => {
+      const r = await db.query(
+        `SELECT k.id, k.question_summary AS summary, k.answer_english AS answer,
+                max(1 - (ch.embedding <=> $2::vector)) AS similarity
+           FROM chunks ch JOIN clarifications k ON k.id = ch.clarification_id
+          WHERE ch.course_id = $1
+          GROUP BY k.id HAVING max(1 - (ch.embedding <=> $2::vector)) >= 0.80
+          ORDER BY similarity DESC LIMIT 3`, [s.courseId, vec(s.embedding)]);
+      return r.rows as Prior;
+    });
+    if (prior.length && !s.input.force) return { result: { status: 'already_answered' as const, matches: prior } };
+    return {};
+  })
+  // 5. Insert as the student (RLS: students insert and read only their own questions), and fetch
+  //    class-visible course text near the question to ground the digest. Private uploads are excluded.
+  .addNode('save', async (s: QS) => {
+    const questionId = randomUUID();
+    const grounding = await withUser(s.me.id, async (db) => {
+      await db.query(
+        `INSERT INTO questions (id, course_id, author_id, author_role, text_original, lang_original,
+                                text_english, text_redacted, embedding, module, status)
+         VALUES ($1,$2,$3,'student',$4,$5,$6,$7,$8::vector,$9,'pending')`,
+        [questionId, s.courseId, s.me.id, s.input.text, s.lang, s.english, s.redacted, vec(s.embedding), s.input.module]);
+      await audit(db, s.me.id, 'question_submitted', { course_id: s.courseId });
+      return groundingChunks(db, s.courseId, s.embedding);
+    });
+    return { questionId, grounding };
+  })
+  // 6. Group with similar questions, as the moderation service.
+  .addNode('group', async (s: QS) => ({ cluster: await assignCluster(s.courseId, s.questionId, s.embedding, s.input.module) }))
+  // 7. Digest agent, only when the group reaches the threshold.
+  .addNode('digest', async (s: QS) => {
+    const cl = s.cluster;
+    if (cl.count >= cl.threshold) {
+      await writeDigest(cl.clusterId, cl.count, s.grounding).catch((e) => console.error('[digest]', e));
+    }
+    return {
+      result: {
+        status: 'submitted' as const, questionId: s.questionId, clusterStatus: cl.count >= cl.threshold ? 'digest' as const : 'waiting' as const,
+        english: s.english, redacted: s.redacted, wordsRemoved: s.wordsRemoved,
+      },
+    };
+  })
+  .addEdge(START, 'budget')
+  .addEdge('budget', 'screen')
+  .addEdge('screen', 'redact')
+  .addEdge('redact', 'check_answered')
+  .addConditionalEdges('check_answered', (s: QS) => (s.result ? END : 'save'), ['save', END])
+  .addEdge('save', 'group')
+  .addEdge('group', 'digest')
+  .addEdge('digest', END)
+  .compile();
+
 export async function submitQuestion(me: Me, courseId: string, input: { text: string; module: string | null; force: boolean }): Promise<SubmitResult> {
   if (me.role !== 'student') throw new HttpError(403, 'Only students ask questions in the question pool.');
-  // 1. Budget and enrolment first, so a failed call cannot be retried without limit.
-  await withUser(me.id, async (db) => {
-    const c = await requireMember(db, courseId);
-    if (c.is_prof) throw new HttpError(403, 'Professors answer questions; they do not ask them.');
-    await spend(db, me.id, 'question', courseId);
-    await spend(db, me.id, 'ai', courseId, 2);
-  });
-
-  // 2. Translate to English (original kept), then redact. Both are plain-text model calls.
-  const { lang, english: raw } = await toEnglish(input.text, 'student_question');
-  let screen: { cleaned: string; abusive: boolean };
-  try {
-    screen = await screenQuestion(raw);
-  } catch (e) {
-    await withUser(me.id, (db) => audit(db, me.id, 'question_blocked', { course_id: courseId, reason: (e as Error).message.slice(0, 80) }));
-    throw e;
-  }
-  const english = screen.cleaned;
-  const redacted = await redact(english, 'student_question');
-  const embedding = await embedOne(redacted);
-
-  // 3. Before entering the pool: has the professor already answered something like this?
-  const prior = await withUser(me.id, async (db) => {
-    const r = await db.query(
-      `SELECT k.id, k.question_summary AS summary, k.answer_english AS answer,
-              max(1 - (ch.embedding <=> $2::vector)) AS similarity
-         FROM chunks ch JOIN clarifications k ON k.id = ch.clarification_id
-        WHERE ch.course_id = $1
-        GROUP BY k.id HAVING max(1 - (ch.embedding <=> $2::vector)) >= 0.80
-        ORDER BY similarity DESC LIMIT 3`, [courseId, vec(embedding)]);
-    return r.rows as { id: string; summary: string | null; answer: string; similarity: number }[];
-  });
-  if (prior.length && !input.force) return { status: 'already_answered', matches: prior };
-
-  // 4. Insert as the student (RLS: students insert and read only their own questions), and fetch
-  //    class-visible course text near the question to ground the digest. Private uploads are excluded.
-  const questionId = randomUUID();
-  const grounding = await withUser(me.id, async (db) => {
-    await db.query(
-      `INSERT INTO questions (id, course_id, author_id, author_role, text_original, lang_original,
-                              text_english, text_redacted, embedding, module, status)
-       VALUES ($1,$2,$3,'student',$4,$5,$6,$7,$8::vector,$9,'pending')`,
-      [questionId, courseId, me.id, input.text, lang, english, redacted, vec(embedding), input.module]);
-    await audit(db, me.id, 'question_submitted', { course_id: courseId });
-    return groundingChunks(db, courseId, embedding);
-  });
-
-  // 5. Cluster as the moderation service.
-  const cl = await assignCluster(courseId, questionId, embedding, input.module);
-
-  // 6. Digest when the cluster reaches the threshold.
-  if (cl.count >= cl.threshold) {
-    await writeDigest(cl.clusterId, cl.count, grounding).catch((e) => console.error('[digest]', e));
-  }
-  return { status: 'submitted', questionId, clusterStatus: cl.count >= cl.threshold ? 'digest' : 'waiting', english, redacted, wordsRemoved: screen.abusive };
+  const out = await questionGraph.invoke({ me, courseId, input });
+  return out.result!;
 }
 
 type Grounding = { title: string; page: number | null; content: string }[];

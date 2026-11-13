@@ -8,6 +8,7 @@ import { embedOne } from '../embed';
 import { languageName } from '../languages';
 import { dropEmptyHeadings } from '../markdown';
 import { audit, countRead, spend } from '../limits';
+import { Annotation, END, START, StateGraph } from '@langchain/langgraph';
 import { llm, llmJson, type ChatMessage } from '../llm';
 import { DATA_RULE, untrusted } from '../untrusted';
 
@@ -213,67 +214,101 @@ function cleanOutput(text: string, maxN: number) {
   return stripOutsideLinks(t);
 }
 
-export async function ask(me: Me, courseId: string, question: string, history: Turn[]): Promise<AskResult> {
-  const qvec = await embedOne(QUERY_PREFIX + question);
-  const topN = config().limits.study_ai_top_chunks;
+// The Tutor agent and the Integrity Guard, as one LangGraph graph:
+//   START → retrieve ─(no course material)→ END
+//                    └→ generate → guard → finish → END
+//   retrieve: budget, hybrid search, and guard layer 1 (is this close to graded work?)
+//   generate: the Tutor (Sonnet) answers from the retrieved sources only, hints-only if layer 1 fired
+//   guard:    layer 2 (Haiku) reads the draft and rewrites any worked final answer as hints
+//   finish:   strips outside links and images, records activity and the audit trail
+const TutorState = Annotation.Root({
+  me: Annotation<Me>(),
+  courseId: Annotation<string>(),
+  question: Annotation<string>(),
+  history: Annotation<Turn[]>(),
+  hits: Annotation<Hit[]>(),
+  graded: Annotation<GradedCheck>(),
+  hintsOnly: Annotation<boolean>(),
+  answer: Annotation<string>(),
+  layer2: Annotation<boolean>(),
+  result: Annotation<AskResult | null>({ reducer: (_a, b) => b, default: () => null }),
+});
+type TutorS = typeof TutorState.State;
 
-  const ctx = await withUser(me.id, async (db) => {
-    await requireMember(db, courseId);
-    await spend(db, me.id, 'ai', courseId, 2);
-    await countRead(db, me.id, courseId, 'study_ai');
-    const hits = await hybridSearch(db, courseId, question, qvec, topN);
-    const graded = await gradedCheck(db, courseId, question, qvec);
-    return { hits, graded };
-  });
-
-  const { hits, graded } = ctx;
-  const sources = toSources(hits);
-  let hintsOnly = graded.hit;
-
-  if (hits.length === 0) {
-    return {
-      answer: 'There is nothing in this course’s materials yet that I can answer from. Once your professor uploads modules or a syllabus, I can help. You can also ask the professor directly in “Ask the professor”.',
-      sources: [], hintsOnly, guardrail: { layer1: graded.hit, layer2: false, reason: graded.reason, similarity: graded.similarity },
-      linksRemoved: 0, lang: 'en',
-    };
-  }
-
-  const messages: ChatMessage[] = [{ role: 'system', content: STUDY_RULES('en', hintsOnly) }];
-  for (const t of history.slice(-4)) {
-    messages.push(t.role === 'user'
-      ? { role: 'user', content: untrusted('student_request', t.content.slice(0, 1500)) }
-      : { role: 'assistant', content: t.content.slice(0, 2000) });
-  }
-  messages.push({
-    role: 'user',
-    content: `Course sources:\n\n${sourceBlock(hits)}\n\nStudent question:\n${untrusted('student_request', question)}`,
-  });
-
-  const draft = await llm({ task: 'study_answer', messages, maxTokens: 2500, temperature: 0.2 });
-  let answer = draft.content.trim();
-  const check = await guardrailCheck(question, answer);
-  if (check.flagged) {
-    answer = check.text;
-    hintsOnly = true;
-  }
-  const egress = cleanOutput(answer, sources.length);
-
-  await withUser(me.id, async (db) => {
-    await recordActivity(db, me, courseId, moduleActivity(hits));
-    await audit(db, me.id, 'study_ai_answer', {
-      course_id: courseId, sources: sources.length, hints_only: hintsOnly,
-      guardrail_layer1: graded.hit, guardrail_layer2: check.flagged,
+const tutorGraph = new StateGraph(TutorState)
+  .addNode('retrieve', async (s: TutorS) => {
+    const qvec = await embedOne(QUERY_PREFIX + s.question);
+    const topN = config().limits.study_ai_top_chunks;
+    const { hits, graded } = await withUser(s.me.id, async (db) => {
+      await requireMember(db, s.courseId);
+      await spend(db, s.me.id, 'ai', s.courseId, 2);
+      await countRead(db, s.me.id, s.courseId, 'study_ai');
+      const hits = await hybridSearch(db, s.courseId, s.question, qvec, topN);
+      const graded = await gradedCheck(db, s.courseId, s.question, qvec);
+      return { hits, graded };
     });
-    if (egress.removed.length) {
-      await audit(db, me.id, 'egress_links_removed', { course_id: courseId, count: egress.removed.length, sample: egress.removed.slice(0, 3) });
+    if (hits.length === 0) {
+      return {
+        hits, graded, hintsOnly: graded.hit,
+        result: {
+          answer: 'There is nothing in this course’s materials yet that I can answer from. Once your professor uploads modules or a syllabus, I can help. You can also ask the professor directly in “Ask the professor”.',
+          sources: [], hintsOnly: graded.hit, guardrail: { layer1: graded.hit, layer2: false, reason: graded.reason, similarity: graded.similarity },
+          linksRemoved: 0, lang: 'en',
+        },
+      };
     }
-  });
+    return { hits, graded, hintsOnly: graded.hit };
+  })
+  .addNode('generate', async (s: TutorS) => {
+    const messages: ChatMessage[] = [{ role: 'system', content: STUDY_RULES('en', s.hintsOnly) }];
+    for (const t of s.history.slice(-4)) {
+      messages.push(t.role === 'user'
+        ? { role: 'user', content: untrusted('student_request', t.content.slice(0, 1500)) }
+        : { role: 'assistant', content: t.content.slice(0, 2000) });
+    }
+    messages.push({
+      role: 'user',
+      content: `Course sources:\n\n${sourceBlock(s.hits)}\n\nStudent question:\n${untrusted('student_request', s.question)}`,
+    });
+    const draft = await llm({ task: 'study_answer', messages, maxTokens: 2500, temperature: 0.2 });
+    return { answer: draft.content.trim() };
+  })
+  .addNode('guard', async (s: TutorS) => {
+    const check = await guardrailCheck(s.question, s.answer);
+    return check.flagged ? { answer: check.text, hintsOnly: true, layer2: true } : { layer2: false };
+  })
+  .addNode('finish', async (s: TutorS) => {
+    const { me, courseId, hits, graded, hintsOnly } = s;
+    const sources = toSources(hits);
+    const egress = cleanOutput(s.answer, sources.length);
+    await withUser(me.id, async (db) => {
+      await recordActivity(db, me, courseId, moduleActivity(hits));
+      await audit(db, me.id, 'study_ai_answer', {
+        course_id: courseId, sources: sources.length, hints_only: hintsOnly,
+        guardrail_layer1: graded.hit, guardrail_layer2: s.layer2,
+      });
+      if (egress.removed.length) {
+        await audit(db, me.id, 'egress_links_removed', { course_id: courseId, count: egress.removed.length, sample: egress.removed.slice(0, 3) });
+      }
+    });
+    return {
+      result: {
+        answer: egress.text, sources, hintsOnly,
+        guardrail: { layer1: graded.hit, layer2: s.layer2, reason: graded.reason, similarity: graded.similarity },
+        linksRemoved: egress.removed.length, lang: 'en',
+      },
+    };
+  })
+  .addEdge(START, 'retrieve')
+  .addConditionalEdges('retrieve', (s: TutorS) => (s.result ? END : 'generate'), ['generate', END])
+  .addEdge('generate', 'guard')
+  .addEdge('guard', 'finish')
+  .addEdge('finish', END)
+  .compile();
 
-  return {
-    answer: egress.text, sources, hintsOnly,
-    guardrail: { layer1: graded.hit, layer2: check.flagged, reason: graded.reason, similarity: graded.similarity },
-    linksRemoved: egress.removed.length, lang: 'en',
-  };
+export async function ask(me: Me, courseId: string, question: string, history: Turn[]): Promise<AskResult> {
+  const out = await tutorGraph.invoke({ me, courseId, question, history });
+  return out.result!;
 }
 
 // ------------------------------------------------------------------ summaries and flashcards

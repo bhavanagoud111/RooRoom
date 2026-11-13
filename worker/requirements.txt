@@ -8,3 +8,5 @@ httpx==0.28.1
 minio==7.2.15
 fpdf2==2.8.2
 python-dateutil==2.9.0.post0
+langchain-core==1.7.1
+langchain-openai==1.7.3

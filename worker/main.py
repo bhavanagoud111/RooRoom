@@ -15,10 +15,11 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-import httpx
 import psycopg
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException
 from fastembed import TextEmbedding
+from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_openai import ChatOpenAI
 from minio import Minio
 from pgvector.psycopg import register_vector
 from psycopg.rows import dict_row
@@ -122,22 +123,26 @@ deliverable. If a date has no year, use the term's year. Never invent a date tha
 
 
 def call_openrouter(model_tier: str, system: str, user: str) -> str:
+    """One model call through LangChain (ChatOpenAI pointed at OpenRouter). Same settings as before:
+    temperature 0, JSON output, and only providers that do not store or train on prompts.
+    The HTTPS_PROXY environment variable sends it through the egress proxy."""
     if not OPENROUTER_KEY:
         raise RuntimeError("OPENROUTER_API_KEY is not set")
-    r = httpx.post(
-        "https://openrouter.ai/api/v1/chat/completions",
-        headers={"Authorization": f"Bearer {OPENROUTER_KEY}", "X-Title": "RooRoom"},
-        json={
-            "model": CONFIG[model_tier],
-            "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
-            "temperature": 0,
-            "response_format": {"type": "json_object"},
-            "provider": {"data_collection": "deny"},
-        },
+    model = ChatOpenAI(
+        model=CONFIG[model_tier],
+        api_key=OPENROUTER_KEY,
+        base_url="https://openrouter.ai/api/v1",
+        default_headers={"X-Title": "RooRoom"},
+        temperature=0,
         timeout=120,
+        max_retries=0,
+        model_kwargs={"response_format": {"type": "json_object"}},
+        extra_body={"provider": {"data_collection": "deny"}},
     )
-    r.raise_for_status()
-    return r.json()["choices"][0]["message"]["content"]
+    reply = model.invoke([SystemMessage(content=system), HumanMessage(content=user)])
+    return reply.content if isinstance(reply.content, str) else "".join(
+        p.get("text", "") if isinstance(p, dict) else str(p) for p in reply.content
+    )
 
 
 def parse_json(text: str) -> dict:

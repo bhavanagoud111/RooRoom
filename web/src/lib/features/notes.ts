@@ -5,6 +5,7 @@ import { requireMember, requireProf, type Course } from '../courses';
 import { open, seal } from '../crypto';
 import { asModerator, withUser } from '../db';
 import { audit, spend } from '../limits';
+import { Annotation, END, START, StateGraph } from '@langchain/langgraph';
 import { llmJson } from '../llm';
 import { toEnglish } from '../translate';
 import { DATA_RULE, untrusted } from '../untrusted';
@@ -112,53 +113,86 @@ export type NoteResult =
   | { status: 'held' }
   | { status: 'queued'; deliverAfter: string };
 
+// The anonymous-note pipeline, as a LangGraph graph:
+//   START → gate → word_list ─(slur or threat)→ END (blocked)
+//                            └→ moderate (Translator + Moderator) ─(blocked / held / suggest the question pool)→ END
+//                                                                  └→ queue (Redactor, then the daily batch) → END
+// If any AI step fails, the note is HELD, never sent.
+const NoteState = Annotation.Root({
+  me: Annotation<Me>(),
+  courseId: Annotation<string>(),
+  input: Annotation<{ text: string; sendAnyway: boolean }>(),
+  course: Annotation<Course>(),
+  text: Annotation<string>(),
+  english: Annotation<string>(),
+  lang: Annotation<string>(),
+  result: Annotation<NoteResult | null>({ reducer: (_a, b) => b, default: () => null }),
+});
+type NS = typeof NoteState.State;
+const endIfDone = (next: string) => (s: NS) => (s.result ? END : next);
+
+const noteGraph = new StateGraph(NoteState)
+  .addNode('gate', async (s: NS) => {
+    const c = await withUser(s.me.id, async (db) => {
+      const course = await requireMember(db, s.courseId);
+      if (course.is_prof) throw new HttpError(403, 'Only students send anonymous notes.');
+      return course;
+    });
+    const gate = await noteGate(s.me, c);
+    if (!gate.open) throw new HttpError(403, gate.reason ?? 'Notes are closed.');
+    await withUser(s.me.id, (db) => spend(db, s.me.id, 'note', s.courseId));
+    return { course: c, text: s.input.text.trim() };
+  })
+  // 1. Word list on the original text. No model is needed to stop a slur or an explicit threat.
+  .addNode('word_list', async (s: NS) => {
+    if (wordListHit(s.text)) return { result: await block(s.me, s.course, s.text, null, null, ['word_list']) };
+    return {};
+  })
+  // 2. Translator and Moderator. 3. Flagged: not delivered. 4. A content question: offer the question pool.
+  .addNode('moderate', async (s: NS) => {
+    const { me, courseId, text } = s;
+    let english: string, lang: string, screen: Screen;
+    try {
+      await withUser(me.id, (db) => spend(db, me.id, 'ai', courseId, 3));
+      ({ english, lang } = await toEnglish(text, 'student_note'));
+      if (wordListHit(english)) return { result: await block(me, s.course, text, english, lang, ['word_list']) };
+      screen = await moderate(english);
+    } catch (e) {
+      if (e instanceof HttpError) throw e;
+      console.error('[notes] screening failed, holding note', (e as Error).message);
+      await insertNote(me, courseId, { status: 'held', original: text, english: null, lang: null, labels: ['screening_unavailable'] });
+      return { result: { status: 'held' as const } };
+    }
+    if (screen.labels.length) return { result: await block(me, s.course, text, english, lang, screen.labels) };
+    if (screen.isContentQuestion && !s.input.sendAnyway) {
+      return { result: { status: 'suggest_question_pool' as const, askUrl: `/c/${courseId}/ask?q=${encodeURIComponent(text.slice(0, 1200))}` } };
+    }
+    return { english, lang };
+  })
+  // 5. Redactor, then queue for the next daily batch.
+  .addNode('queue', async (s: NS) => {
+    const { me, courseId, text, lang } = s;
+    let redacted: string;
+    try {
+      redacted = await redact(s.english, 'student_note');
+    } catch {
+      await insertNote(me, courseId, { status: 'held', original: text, english: null, lang, labels: ['screening_unavailable'] });
+      return { result: { status: 'held' as const } };
+    }
+    const deliverAfter = await insertNote(me, courseId, { status: 'queued', original: text, english: redacted, lang, labels: [] });
+    return { result: { status: 'queued' as const, deliverAfter } };
+  })
+  .addEdge(START, 'gate')
+  .addEdge('gate', 'word_list')
+  .addConditionalEdges('word_list', endIfDone('moderate'), ['moderate', END])
+  .addConditionalEdges('moderate', endIfDone('queue'), ['queue', END])
+  .addEdge('queue', END)
+  .compile();
+
 export async function submitNote(me: Me, courseId: string, input: { text: string; sendAnyway: boolean }): Promise<NoteResult> {
   if (me.role !== 'student') throw new HttpError(403, 'Only students send anonymous notes.');
-  const c = await withUser(me.id, async (db) => {
-    const course = await requireMember(db, courseId);
-    if (course.is_prof) throw new HttpError(403, 'Only students send anonymous notes.');
-    return course;
-  });
-  const gate = await noteGate(me, c);
-  if (!gate.open) throw new HttpError(403, gate.reason ?? 'Notes are closed.');
-  await withUser(me.id, (db) => spend(db, me.id, 'note', courseId));
-
-  const text = input.text.trim();
-  // 1. Word list on the original text. No model is needed to stop a slur or an explicit threat.
-  if (wordListHit(text)) return block(me, c, text, null, null, ['word_list']);
-
-  // 2. Translate and moderate. If either call fails, the note is HELD, never sent.
-  let english: string, lang: string, screen: Screen;
-  try {
-    await withUser(me.id, (db) => spend(db, me.id, 'ai', courseId, 3));
-    ({ english, lang } = await toEnglish(text, 'student_note'));
-    if (wordListHit(english)) return block(me, c, text, english, lang, ['word_list']);
-    screen = await moderate(english);
-  } catch (e) {
-    if (e instanceof HttpError) throw e;
-    console.error('[notes] screening failed, holding note', (e as Error).message);
-    await insertNote(me, courseId, { status: 'held', original: text, english: null, lang: null, labels: ['screening_unavailable'] });
-    return { status: 'held' };
-  }
-
-  // 3. Flagged: not delivered. The student sees which rule and can rewrite.
-  if (screen.labels.length) return block(me, c, text, english, lang, screen.labels);
-
-  // 4. A question about content? Offer the question pool, so the answer reaches the whole class.
-  if (screen.isContentQuestion && !input.sendAnyway) {
-    return { status: 'suggest_question_pool', askUrl: `/c/${courseId}/ask?q=${encodeURIComponent(text.slice(0, 1200))}` };
-  }
-
-  // 5. Redact, then queue for the next daily batch.
-  let redacted: string;
-  try {
-    redacted = await redact(english, 'student_note');
-  } catch {
-    await insertNote(me, courseId, { status: 'held', original: text, english: null, lang, labels: ['screening_unavailable'] });
-    return { status: 'held' };
-  }
-  const deliverAfter = await insertNote(me, courseId, { status: 'queued', original: text, english: redacted, lang, labels: [] });
-  return { status: 'queued', deliverAfter };
+  const out = await noteGraph.invoke({ me, courseId, input });
+  return out.result!;
 }
 
 async function insertNote(me: Me, courseId: string, n: { status: 'held' | 'blocked' | 'queued'; original: string; english: string | null; lang: string | null; labels: Label[] }, noteId = randomUUID()): Promise<string> {
