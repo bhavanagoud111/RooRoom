@@ -5,6 +5,7 @@ import { publish } from '@/lib/features/clarify';
 type P = { courseId: string };
 const Schema = z.object({
   clusterId: z.string().regex(uuid).nullable().optional(),
+  questionId: z.string().regex(uuid).nullable().optional(),
   answer: z.string().trim().min(2).max(4000),
   title: z.string().trim().max(200).nullable().optional(),
 });
@@ -13,5 +14,5 @@ const Schema = z.object({
 export const POST = route<P>(async (req, { me, params }) => {
   const courseId = assertUuid(params.courseId);
   const b = await body(req, Schema);
-  return publish(me, courseId, { clusterId: b.clusterId ?? null, answer: b.answer, title: b.title || null });
+  return publish(me, courseId, { clusterId: b.clusterId ?? null, questionId: b.questionId ?? null, answer: b.answer, title: b.title || null });
 });

@@ -123,3 +123,65 @@ export function Announce({ courseId }: { courseId: string }) {
 
 
 /** Cluster counts grouped by module or assignment: where the class is confused, at a glance. */
+
+/**
+ * "Answer" on one anonymous question, for questions that haven't reached a digest (fewer than
+ * the course's threshold of students). Same Answer Drafter and the same publish step as a digest.
+ */
+export function QuestionAnswer({ questionId, courseId }: { questionId: string; courseId: string }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [answer, setAnswer] = useState('');
+  const [drafted, setDrafted] = useState(false);
+  const [busy, setBusy] = useState<'draft' | 'publish' | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function draft() {
+    setBusy('draft'); setErr(null);
+    try {
+      const r = await api<{ draft: string }>(`/api/courses/${courseId}/questions/${questionId}/draft`, { body: {} });
+      setAnswer(r.draft); setDrafted(true);
+    } catch (e) { setErr((e as Error).message); } finally { setBusy(null); }
+  }
+  async function publish() {
+    setBusy('publish'); setErr(null);
+    try {
+      await api(`/api/courses/${courseId}/clarifications`, { body: { questionId, answer } });
+      router.refresh();
+    } catch (e) { setErr((e as Error).message); setBusy(null); }
+  }
+
+  if (!open) {
+    return (
+      <button className="btn-outline btn-sm shrink-0" onClick={() => setOpen(true)}>
+        <Megaphone className="h-3 w-3" />Answer
+      </button>
+    );
+  }
+  return (
+    <div className="mt-2 w-full basis-full rounded-lg border border-line bg-slate-50 p-3">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <label className="label mb-0" htmlFor={`qa-${questionId}`}>Your answer to the whole class</label>
+        <button className="btn-outline btn-sm" onClick={draft} disabled={!!busy}>
+          {busy === 'draft' ? <Spinner /> : <Wand2 className="h-3.5 w-3.5" />}Draft from syllabus
+        </button>
+      </div>
+      {drafted && (
+        <p className="mb-2 flex items-center gap-1 text-xs text-roo-700"><Sparkles className="h-3 w-3" />
+          AI draft from your course materials. Check it and edit it; nothing is sent until you publish.</p>
+      )}
+      <div className="relative">
+        <textarea id={`qa-${questionId}`} className="input min-h-[100px] pb-10" value={answer} onChange={(e) => setAnswer(e.target.value)}
+          placeholder="Write an answer, or press Draft from syllabus…" />
+        <ComposeTools value={answer} onChange={setAnswer} />
+      </div>
+      {err && <p className="mt-2 text-sm text-red-600" role="alert">{err}</p>}
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+        <button className="text-xs font-semibold text-ink-mute hover:text-ink" onClick={() => setOpen(false)} disabled={!!busy}>Cancel</button>
+        <button className="btn-primary btn-sm" onClick={publish} disabled={!!busy || answer.trim().length < 2}>
+          {busy === 'publish' ? <Spinner /> : <Send className="h-3.5 w-3.5" />}Publish to class
+        </button>
+      </div>
+    </div>
+  );
+}

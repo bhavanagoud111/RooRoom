@@ -4,7 +4,7 @@ import { requireMe } from '@/lib/auth';
 import { courseForPage } from '@/lib/courses';
 import { withUser } from '@/lib/db';
 import { Empty, Metric, PageHeader } from '@/components/ui';
-import { Announce, DigestCard, type Digest } from './DashboardClient';
+import { Announce, DigestCard, QuestionAnswer, type Digest } from './DashboardClient';
 import { SummarizeButton } from './Summarize';
 import { allQuestions } from '@/lib/features/summarize';
 import { Badge } from '@/components/ui';
@@ -47,7 +47,7 @@ export default async function Dashboard({ params }: { params: Promise<{ courseId
         </div>
         <div className="border-b border-line p-5"><SummarizeButton courseId={c.id} kind="questions" count={questions.length} /></div>
         {questions.length === 0 ? <p className="px-5 py-6 text-sm text-ink-mute">No questions yet.</p> : (
-          <ul className="max-h-[360px] divide-y divide-line overflow-y-auto">
+          <ul className="max-h-[520px] divide-y divide-line overflow-y-auto">
             {questions.map((q) => (
               <li key={q.id} className="flex flex-wrap items-start justify-between gap-2 px-5 py-3">
                 <p className="min-w-0 flex-1 text-sm text-ink" dir="auto">{q.text}</p>
@@ -56,6 +56,7 @@ export default async function Dashboard({ params }: { params: Promise<{ courseId
                   {q.status === 'answered' && <Badge tone="green">answered</Badge>}
                   <When iso={q.created_at} mode="relative" />
                 </span>
+                {q.status !== 'answered' && <QuestionAnswer questionId={q.id} courseId={c.id} />}
               </li>
             ))}
           </ul>

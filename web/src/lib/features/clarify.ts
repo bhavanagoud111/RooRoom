@@ -228,19 +228,42 @@ export async function draftAnswer(me: Me, clusterId: string): Promise<string> {
     const g = await groundingChunks(db, cl.course_id, JSON.parse(cl.centroid), 5);
     return { summary: cl.summary as string | null, grounding: g };
   });
-  const material = ctx.grounding.map((g) => untrusted('course_document', g.content.slice(0, 1200), { title: g.title, page: g.page ?? '' })).join('\n');
+  return writeDraft(ctx.summary ?? '', ctx.grounding);
+}
+
+/**
+ * Draft for one anonymous question that hasn't reached a digest yet (fewer than 3 students).
+ * The professor sees these questions already (redacted, no author) in "All anonymous questions".
+ */
+export async function draftForQuestion(me: Me, courseId: string, questionId: string): Promise<string> {
+  const text = await withUser(me.id, async (db) => {
+    await requireProf(db, courseId);
+    const r = await db.query('SELECT text_redacted FROM prof_course_questions($1) WHERE id = $2', [courseId, questionId]);
+    if (!r.rows[0]) throw new HttpError(404, 'Not found.');
+    await spend(db, me.id, 'ai', courseId);
+    return r.rows[0].text_redacted as string;
+  });
+  const emb = await embedOne(text);
+  const grounding = await withUser(me.id, (db) => groundingChunks(db, courseId, emb, 5));
+  return writeDraft(text, grounding);
+}
+
+async function writeDraft(about: string, grounding: Grounding): Promise<string> {
+  const material = grounding.map((g) => untrusted('course_document', g.content.slice(0, 1200), { title: g.title, page: g.page ?? '' })).join('\n');
   const r = await llm({
     task: 'draft_answer', temperature: 0.2, maxTokens: 1200,
     messages: [
       { role: 'system', content: DRAFT_SYSTEM },
-      { role: 'user', content: `What students are unsure about:\n${untrusted('student_question', ctx.summary ?? '')}\n\nCourse material:\n${material || '(none uploaded)'}` },
+      { role: 'user', content: `What students are unsure about:\n${untrusted('student_question', about)}\n\nCourse material:\n${material || '(none uploaded)'}` },
     ],
   });
-  return stripOutsideLinks(r.content.trim()).text;
+  const draft = stripOutsideLinks(r.content.trim()).text;
+  if (!draft) throw new HttpError(503, 'The AI returned an empty draft. Please try again.');
+  return draft;
 }
 
 /** Publishes an answer to the class. Nothing reaches students without this call by the professor. */
-export async function publish(me: Me, courseId: string, input: { clusterId: string | null; answer: string; title: string | null }) {
+export async function publish(me: Me, courseId: string, input: { clusterId: string | null; questionId?: string | null; answer: string; title: string | null }) {
   const { english } = await toEnglish(input.answer, 'professor_answer');
   const clarificationId = randomUUID();
   const summary = await withUser(me.id, async (db) => {
@@ -252,6 +275,12 @@ export async function publish(me: Me, courseId: string, input: { clusterId: stri
       summary = summary || r.rows[0].summary;
       await db.query(`UPDATE clusters SET status = 'answered' WHERE id = $1`, [input.clusterId]);
     }
+    if (input.questionId && !input.clusterId) {
+      // A single question answered before it reached a digest. Its redacted text becomes the title.
+      const r = await db.query('SELECT text_redacted FROM prof_course_questions($1) WHERE id = $2', [courseId, input.questionId]);
+      if (!r.rows[0]) throw new HttpError(404, 'That question is not visible to you.');
+      summary = summary || (r.rows[0].text_redacted as string).slice(0, 200);
+    }
     await db.query(
       `INSERT INTO clarifications (id, cluster_id, course_id, author_id, author_role, question_summary, answer_english)
        VALUES ($1,$2,$3,$4,'professor',$5,$6)`,
@@ -262,6 +291,9 @@ export async function publish(me: Me, courseId: string, input: { clusterId: stri
   if (input.clusterId) {
     await asModerator((db) =>
       db.query(`UPDATE questions SET status = 'answered' WHERE cluster_id = $1`, [input.clusterId]));
+  } else if (input.questionId) {
+    await asModerator((db) =>
+      db.query(`UPDATE questions SET status = 'answered' WHERE id = $1 AND course_id = $2`, [input.questionId, courseId]));
   }
   // Link to the Study AI: the answer becomes course knowledge, so the Study AI cannot contradict the professor.
   const kb = `Professor's clarification${summary ? ` about: ${summary}` : ''}\n\n${english}`;
